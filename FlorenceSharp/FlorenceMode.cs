@@ -9,6 +9,15 @@ namespace FlorenceSharp
         OCRWithRegion,
         ObjectDetection,
         DenseRegionCaption,
-        CaptionToPhraseGrounding
+        RegionProposal,
+        
+        // With inputs
+        CaptionToPhraseGrounding,
+        ReferringExpressionSegmentation,
+        RegionToSegmentation,
+        OpenVocabularyDetection,
+        RegionToCategory,
+        RegionToDescription,
+        RegionToOCR,
     }
 }

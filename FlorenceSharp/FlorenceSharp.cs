@@ -15,8 +15,12 @@ namespace FlorenceSharp
             { 
                 { FlorenceMode.Caption, "What does this image describe?" },
                 { FlorenceMode.DetailedCaption, "Describe in detail what is shown in the image." },
-                { FlorenceMode.MoreDetailedCaption, "Describe in detail what is shown in the image." },
-                // TODO: Fill in the rest
+                { FlorenceMode.MoreDetailedCaption, "Describe with a paragraph what is shown in the image." },
+                { FlorenceMode.OCR, "What is the text in the image?" },
+                { FlorenceMode.OCRWithRegion, "What is the text in the image, with regions?" },
+                { FlorenceMode.ObjectDetection, "Locate the objects with category name in the image." },
+                { FlorenceMode.DenseRegionCaption, "Locate the objects in the image, with their descriptions." },
+                { FlorenceMode.RegionProposal, "Locate the region proposals in the image." },
                 
             }.ToFrozenDictionary();
 
@@ -27,7 +31,12 @@ namespace FlorenceSharp
             new Dictionary<FlorenceMode, string>()
             {
                 { FlorenceMode.CaptionToPhraseGrounding, $"Locate the phrases in the caption: {INPUT_PLACEHOLDER}" },
-                // TODO: Fill in the rest
+                { FlorenceMode.ReferringExpressionSegmentation, $"Locate {INPUT_PLACEHOLDER} in the image with mask" },
+                { FlorenceMode.RegionToSegmentation, $"What is the polygon mask of region {INPUT_PLACEHOLDER}" },
+                { FlorenceMode.OpenVocabularyDetection, $"Locate {INPUT_PLACEHOLDER} in the image." },
+                { FlorenceMode.RegionToCategory, $"What is the region {INPUT_PLACEHOLDER}?" },
+                { FlorenceMode.RegionToDescription, $"What does the region {INPUT_PLACEHOLDER} describe?" },
+                { FlorenceMode.RegionToOCR, $"What text is in the region {INPUT_PLACEHOLDER}?" },
             }.ToFrozenDictionary();
         
         private readonly SessionOptions OnnxSessionOptions;
