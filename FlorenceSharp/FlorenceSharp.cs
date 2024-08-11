@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using FlorenceSharp.Processors.Image;
 using Microsoft.ML.OnnxRuntime;
 
 namespace FlorenceSharp
@@ -37,6 +38,22 @@ namespace FlorenceSharp
             VisionEncoderOnnxSession,
             TokensEmbeddingOnnxSession;
         
+        // https://huggingface.co/microsoft/Florence-2-large/blob/main/preprocessor_config.json
+        private struct CLIPImageProcessorConfig: ICLIPImagePreProcessorConfig
+        {
+            public static int ImageWidth => 768;
+            
+            public static int ImageHeight => ImageWidth;
+            
+            public static int ImageSequenceLength => 577;
+
+            public static float[] ImageMean => [ 0.485f, 0.456f, 0.406f ];
+            
+            public static float[] ImageStd => [ 0.229f, 0.224f, 0.225f ];
+        }
+
+        private readonly CLIPImagePreProcessor<CLIPImageProcessorConfig> ImagePreProcessor;
+        
         public FlorenceSharp(SessionOptions? onnxSessionOptions)
         {
             OnnxSessionOptions = onnxSessionOptions ?? new();
@@ -45,26 +62,50 @@ namespace FlorenceSharp
             DecoderOnnxSession = new(ConfigT.DecoderModelPath, OnnxSessionOptions);
             VisionEncoderOnnxSession = new(ConfigT.VisionEncoderModelPath, OnnxSessionOptions);
             TokensEmbeddingOnnxSession = new(ConfigT.TokensEmbeddingModelPath, OnnxSessionOptions);
+            
+            ImagePreProcessor = new();
         }
 
         public string GenerateCaption(ReadOnlySpan<byte> imagePixels)
         {
-            throw new NotImplementedException();
+            return GenerateCaptionCore(imagePixels, FlorenceMode.Caption);
         }
         
         public string GenerateDetailedCaption(ReadOnlySpan<byte> imagePixels)
         {
-            throw new NotImplementedException();
+            return GenerateCaptionCore(imagePixels, FlorenceMode.DetailedCaption);
         }
         
         public string GenerateMoreDetailedCaption(ReadOnlySpan<byte> imagePixels)
         {
-            throw new NotImplementedException();
+            return GenerateCaptionCore(imagePixels, FlorenceMode.MoreDetailedCaption);
         }
 
+        private string GenerateCaptionCore(ReadOnlySpan<byte> imagePixels, FlorenceMode mode)
+        {
+            var prompt = PROMPTS_WITHOUT_INPUTS[mode];
+            
+            var encoded = EncodeSentence(prompt);
+            
+            var imagePreProcessed = ImagePreProcessor.PreProcess(imagePixels);
+            
+            throw new NotImplementedException();
+        }
+        
+        private SentenceEncoderOutput EncodeSentence(string sentence)
+        {
+            throw new NotImplementedException();
+        }
+        
+        private SentenceEncoderOutput EncodeSentences(ReadOnlySpan<string> sentences)
+        {
+            throw new NotImplementedException();
+        }
+        
         public void Dispose()
         {
             OnnxSessionOptions.Dispose();
+            
             EncoderOnnxSession.Dispose();
             DecoderOnnxSession.Dispose();
             VisionEncoderOnnxSession.Dispose();
