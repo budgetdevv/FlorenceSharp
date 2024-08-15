@@ -1,7 +1,7 @@
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Processing.Processors.Transforms;
 
-namespace FlorenceSharp.Processors.Image
+namespace FlorenceSharp.Processors.Imaging
 {
     // https://huggingface.co/docs/transformers/en/model_doc/clip#transformers.CLIPImageProcessor
     public interface ICLIPImagePreProcessorConfig

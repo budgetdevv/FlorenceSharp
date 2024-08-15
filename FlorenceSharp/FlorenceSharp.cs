@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
-using FlorenceSharp.Processors.Image;
+using FlorenceSharp.Processors.Imaging;
 using Microsoft.ML.OnnxRuntime;
 
 namespace FlorenceSharp
