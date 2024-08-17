@@ -58,9 +58,9 @@ namespace FlorenceSharp.Helpers
         /// Join a sequence of tensors along an existing axis.
         /// </summary>
         /// <param name="tensors">The tensors must have the same shape, except in the dimension corresponding to axis (the first, by default).</param>
-        /// <param name="dimension">The axis along which the tensors will be joined. If axis is -1, arrays are flattened before use. Default is 0.</param>
+        /// <param name="axis">The axis along which the tensors will be joined. If axis is -1, arrays are flattened before use. Default is 0.</param>
         public static Tensor<T> ConcatenateOnDimension<T>(
-            int dimension,
+            int axis,
             params scoped ReadOnlySpan<DenseTensor<T>> tensors)
         {
             var convertedTensors = new SystemNumericsTensors.Tensor<T>[tensors.Length];
@@ -72,7 +72,7 @@ namespace FlorenceSharp.Helpers
                 convertedTensors[currentIndex++] = tensor.ToSystemNumericsTensor();
             }
             
-            var concatenated = SystemNumericsTensor.ConcatenateOnDimension<T>(dimension, convertedTensors);
+            var concatenated = SystemNumericsTensor.ConcatenateOnDimension<T>(axis, convertedTensors);
 
             return concatenated.ToOnnxDenseTensor();
         }
