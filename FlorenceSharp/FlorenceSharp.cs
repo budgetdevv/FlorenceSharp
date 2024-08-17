@@ -122,6 +122,8 @@ namespace FlorenceSharp
             DecoderOnnxSession.Dispose();
             VisionEncoderOnnxSession.Dispose();
             TokensEmbeddingOnnxSession.Dispose();
+            
+            Tokenizer.Dispose();
         }
     }
 }

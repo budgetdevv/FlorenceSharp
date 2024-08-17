@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using FlorenceSharp.Helpers;
 using Microsoft.ML.OnnxRuntime;
@@ -5,7 +6,7 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace FlorenceSharp.Tokenizers
 {
-    public readonly struct FlorenceBartTokenizer
+    public readonly struct FlorenceBartTokenizer: IDisposable
     {
         private static readonly Assembly CURRENT_ASSEMBLY = typeof(FlorenceBartTokenizer).Assembly;
         
@@ -46,9 +47,6 @@ namespace FlorenceSharp.Tokenizers
         {
             sessionOptions.RegisterOrtExtensions();
             SessionOptions = sessionOptions;
-            
-            // TokenizerEncodeSession = new(ConfigT.TokenizerEncodeOnnxModelPath, sessionOptions);
-            // TokenizerDecodeSession = new(ConfigT.TokenizerDecodeOnnxModelPath, sessionOptions);
 
             var currentAssembly = CURRENT_ASSEMBLY;
             
@@ -94,6 +92,12 @@ namespace FlorenceSharp.Tokenizers
 
             // Get the string from the tensor ( There's only 1 string )
             return outputTensor[0];
+        }
+        
+        public void Dispose()
+        {
+            TokenizerEncodeSession.Dispose();
+            TokenizerDecodeSession.Dispose();
         }
     }
 }
