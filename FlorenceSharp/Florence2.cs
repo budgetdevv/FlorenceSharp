@@ -2,9 +2,11 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using FlorenceSharp.Helpers;
 using FlorenceSharp.Processors.Imaging;
 using FlorenceSharp.Tokenizers;
 using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace FlorenceSharp
 {
@@ -25,8 +27,31 @@ namespace FlorenceSharp
 
     public sealed class Florence2(SessionOptions? onnxSessionOptions = null):
         Florence2<DefaultFlorence2Config>(onnxSessionOptions);
+
+    public partial class Florence2<ConfigT>
+    {
+        private struct EncoderInput
+        {
+            
+        }
+        
+        private struct DecoderInput
+        {
+            
+        }
+        
+        private struct VisionEncoderInput
+        {
+            public const string PIXEL_VALUES_NAME = "pixel_values";
+        }
+        
+        private struct TokensEmbeddingInput
+        {
+            public const string INPUT_IDS_NAME = "input_ids";
+        }
+    }
     
-    public class Florence2<ConfigT>: IAsyncInitializable<SessionOptions?, Florence2<ConfigT>>, IDisposable
+    public partial class Florence2<ConfigT>: IAsyncInitializable<SessionOptions?, Florence2<ConfigT>>, IDisposable
         where ConfigT: struct, IFlorenceConfiguration
     {
         // https://huggingface.co/microsoft/Florence-2-large/blob/6bf179230dd8855083a51a5e11beb04aec1291fd/processing_florence2.py#L112
@@ -123,11 +148,41 @@ namespace FlorenceSharp
         {
             var prompt = PROMPTS_WITHOUT_INPUTS[mode];
             
-            var encoded = Tokenizer.Tokenize(prompt);
+            // TODO: We can make a cache for constant prompts.
+            var tokenized = Tokenizer.Tokenize(prompt);
+            
+            using var tokensEmbeddingOutput = TokensEmbeddingOnnxSession.Run(
+            [
+                NamedOnnxValue.CreateFromTensor(TokensEmbeddingInput.INPUT_IDS_NAME, tokenized.InputIDs),
+            ]);
+            
+            var tokenEmbeddings = (DenseTensor<float>) tokensEmbeddingOutput[0].Value;
             
             var imagePreProcessed = ImagePreProcessor.PreProcess(imagePixels);
+
+            var imagePixelsTensor = imagePreProcessed.NormalizedInputTensor;
             
+            // The expected input is batch_size, channels ( Hardcoded to 3 ), height, width
+            imagePixelsTensor.Reshape([ 1, ..imagePixelsTensor.Dimensions ]);
             
+            using var visionEncoderOutput = VisionEncoderOnnxSession.Run(
+            [
+                NamedOnnxValue.CreateFromTensor(VisionEncoderInput.PIXEL_VALUES_NAME, imagePixelsTensor),
+            ]);
+            
+            var imageFeatures = (DenseTensor<float>) visionEncoderOutput[0].Value;
+            
+            var (inputEmbeds, attentionMask) = MergeTokenEmbeddingsAndImageFeatures(tokenEmbeddings, imageFeatures, tokenized.AttentionMask);
+            
+            throw new NotImplementedException();
+        }
+        
+        private (DenseTensor<float> inputEmbeds, DenseTensor<long> attentionMask) MergeTokenEmbeddingsAndImageFeatures(
+            DenseTensor<float> tokenEmbeddings,
+            DenseTensor<float> imageFeatures,
+            DenseTensor<long> textAttentionMask)
+        {
+            var inputEmbeds = TensorHelpers.ConcatenateOnDimension<float>(1, tokenEmbeddings, imageFeatures);
             
             throw new NotImplementedException();
         }

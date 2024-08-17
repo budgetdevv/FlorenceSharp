@@ -1,4 +1,5 @@
 using System;
+using Microsoft.ML.OnnxRuntime.Tensors;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -7,11 +8,16 @@ namespace FlorenceSharp.Processors.Imaging
 {
     public readonly struct CLIPImagePreProcessor<ConfigT> where ConfigT: ICLIPImagePreProcessorConfig
     {
-        public struct Output(float[] normalizedInput, ImageDimensions originalDimensions)
+        public readonly struct Output(
+            DenseTensor<float> normalizedInputTensor,
+            int[] tensorDimensions,
+            ImageDimensions imageOriginalDimensions)
         {
-            public float[] NormalizedInput = normalizedInput;
+            public readonly DenseTensor<float> NormalizedInputTensor = normalizedInputTensor;
             
-            public ImageDimensions OriginalDimensions = originalDimensions;
+            public readonly int[] TensorDimensions = tensorDimensions;
+            
+            public readonly ImageDimensions ImageOriginalDimensions = imageOriginalDimensions;
         }
         
         public Output PreProcess(ReadOnlySpan<byte> imagePixels)
@@ -19,11 +25,13 @@ namespace FlorenceSharp.Processors.Imaging
             var imageWidth = ConfigT.ImageWidth;
             var imageHeight = ConfigT.ImageHeight;
             
-            var buffer = new float[imageWidth * imageHeight * 3];
+            int[] dimensions = [imageWidth * imageHeight * 3];
+            
+            var tensor = new DenseTensor<float>(dimensions);
             
             using var image = Image.Load<Rgba32>(imagePixels);
 
-            var originalDimensions = new ImageDimensions(image.Width, image.Height);
+            var originalImageDimensions = new ImageDimensions(image.Width, image.Height);
             
             image.Mutate(x => x.Resize(imageWidth, imageHeight));
             
@@ -46,17 +54,15 @@ namespace FlorenceSharp.Processors.Imaging
                     for (var x = 0; x < imageWidth; x++)
                     {
                         var pixel = rowSpan[x];
-
-                        var offset = (y * imageWidth + x) * 3;
                     
-                        buffer[offset + 0] = (pixel.R - imageMean0) / imageStd0;
-                        buffer[offset + 1] = (pixel.G - imageMean1) / imageStd1;
-                        buffer[offset + 2] = (pixel.B - imageMean2) / imageStd2;
+                        tensor[0, y, x] = (pixel.R - imageMean0) / imageStd0;
+                        tensor[1, y, x] = (pixel.G - imageMean1) / imageStd1;
+                        tensor[2, y, x] = (pixel.B - imageMean2) / imageStd2;
                     }
                 }
             });
             
-            return new(buffer, originalDimensions);
+            return new(tensor, dimensions, originalImageDimensions);
         }
     }
 }
