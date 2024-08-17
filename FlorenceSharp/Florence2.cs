@@ -84,8 +84,8 @@ namespace FlorenceSharp
         private readonly CLIPImagePreProcessor<CLIPImageProcessorConfig> ImagePreProcessor;
         
         private readonly FlorenceBartTokenizer Tokenizer;
-        
-        public Florence2(SessionOptions? onnxSessionOptions = null)
+
+        protected Florence2(SessionOptions? onnxSessionOptions = null)
         {
             OnnxSessionOptions = onnxSessionOptions ??= new();
             
