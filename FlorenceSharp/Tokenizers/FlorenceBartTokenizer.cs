@@ -61,10 +61,11 @@ namespace FlorenceSharp.Tokenizers
 
         public EncoderOutput Tokenize(string sentence)
         {
-            return Tokenize([ sentence ]);
+            string[] arr = [ sentence ];
+            return Tokenize(arr);
         }
         
-        public EncoderOutput Tokenize(string[] sentences)
+        public EncoderOutput Tokenize(Memory<string> sentences)
         {
             var inputTensor = new DenseTensor<string>(sentences, [ sentences.Length ]);
             
@@ -79,7 +80,7 @@ namespace FlorenceSharp.Tokenizers
             return new(inputIDs, attentionMask);
         }
 
-        public string Decode(long[] inputIDs)
+        public string Decode(Memory<long> inputIDs)
         {
             var inputTensor = new DenseTensor<long>(inputIDs, [ inputIDs.Length ]);
             
