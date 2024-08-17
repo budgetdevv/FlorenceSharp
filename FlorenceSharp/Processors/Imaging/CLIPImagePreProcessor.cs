@@ -25,7 +25,7 @@ namespace FlorenceSharp.Processors.Imaging
             var imageWidth = ConfigT.ImageWidth;
             var imageHeight = ConfigT.ImageHeight;
             
-            int[] dimensions = [imageWidth * imageHeight * 3];
+            int[] dimensions = [ imageWidth, imageHeight, 3 ];
             
             var tensor = new DenseTensor<float>(dimensions);
             
