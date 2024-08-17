@@ -8,7 +8,25 @@ using Microsoft.ML.OnnxRuntime;
 
 namespace FlorenceSharp
 {
-    public sealed class FlorenceSharp<ConfigT>: IAsyncInitializable<SessionOptions?, FlorenceSharp<ConfigT>>, IDisposable
+    public struct DefaultFlorence2Config: IFlorenceConfiguration
+    {
+        // https://huggingface.co/onnx-community/Florence-2-large/tree/main/onnx
+
+        private const string BASE_PATH = "FlorenceSharp/Models";
+        
+        public static string EncoderModelPath => $"{BASE_PATH}/encoder_model.onnx";
+        
+        public static string DecoderModelPath => $"{BASE_PATH}/decoder_model.onnx";
+        
+        public static string VisionEncoderModelPath => $"{BASE_PATH}/vision_encoder.onnx";
+        
+        public static string TokensEmbeddingModelPath => $"{BASE_PATH}/embed_tokens.onnx";
+    }
+
+    public sealed class Florence2(SessionOptions? onnxSessionOptions = null):
+        Florence2<DefaultFlorence2Config>(onnxSessionOptions);
+    
+    public class Florence2<ConfigT>: IAsyncInitializable<SessionOptions?, Florence2<ConfigT>>, IDisposable
         where ConfigT: struct, IFlorenceConfiguration
     {
         // https://huggingface.co/microsoft/Florence-2-large/blob/6bf179230dd8855083a51a5e11beb04aec1291fd/processing_florence2.py#L112
@@ -67,7 +85,7 @@ namespace FlorenceSharp
         
         private readonly FlorenceBartTokenizer Tokenizer;
         
-        public FlorenceSharp(SessionOptions? onnxSessionOptions)
+        public Florence2(SessionOptions? onnxSessionOptions = null)
         {
             OnnxSessionOptions = onnxSessionOptions ??= new();
             
@@ -81,7 +99,7 @@ namespace FlorenceSharp
             Tokenizer = new(onnxSessionOptions);
         }
         
-        public static async ValueTask<FlorenceSharp<ConfigT>> InitializeAsync(SessionOptions? onnxSessionOptions)
+        public static async ValueTask<Florence2<ConfigT>> InitializeAsync(SessionOptions? onnxSessionOptions)
         {
             return new(onnxSessionOptions);
         }

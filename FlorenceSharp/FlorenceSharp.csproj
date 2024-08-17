@@ -13,15 +13,27 @@
 
     <ItemGroup>
         <EmbeddedResource Include="Resources\Embedded\*.*" Visible="true" />
+        <EmbeddedResource Remove="Debug\**" />
     </ItemGroup>
 
     <!--    This is required for some reason ( For MacOS at least ).
     I stole the DLL from the nuget package folder of Microsoft.ML.OnnxRuntime.Extensions-->
     <ItemGroup>
-        <None Update="Resources\ortextensions.dylib">
+        <None Update="Resources\ortextensions.dylib" 
+              Condition="$([MSBuild]::IsOSPlatform('OSX'))" 
+              Visible="false">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <Link>ortextensions.dylib</Link>
         </None>
     </ItemGroup>
+
+    <!--  https://youtrack.jetbrains.com/issue/RIDER-26906 -->
+    <Target Name="ExcludeAnnoyingDylib" AfterTargets="ResolveAssemblyReferences">
+        <ItemGroup>
+            <None Update="@(None)" Link="true">
+                <Visible>false</Visible>
+            </None>
+        </ItemGroup>
+    </Target>
 
 </Project>
