@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace FlorenceSharp.Helpers
 {
-    public class ResourceHelpers
+    public static class ResourceHelpers
     {
         public static Stream? GetResourceStream(Assembly assembly, string resourcePath)
         {
