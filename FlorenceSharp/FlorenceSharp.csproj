@@ -6,8 +6,22 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.18.1" />
-      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.18.1" />
+        <PackageReference Include="Microsoft.ML.OnnxRuntime.Extensions" Version="0.12.0" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Resources\Embedded\*.*" Visible="true" />
+    </ItemGroup>
+
+    <!--    This is required for some reason ( For MacOS at least ).
+    I stole the DLL from the nuget package folder of Microsoft.ML.OnnxRuntime.Extensions-->
+    <ItemGroup>
+        <None Update="Resources\ortextensions.dylib">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>ortextensions.dylib</Link>
+        </None>
     </ItemGroup>
 
 </Project>

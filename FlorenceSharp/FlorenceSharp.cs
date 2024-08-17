@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using FlorenceSharp.Processors.Imaging;
+using FlorenceSharp.Tokenizers;
 using Microsoft.ML.OnnxRuntime;
 
 namespace FlorenceSharp
 {
-    public sealed class FlorenceSharp<ConfigT>: IDisposable
-        where ConfigT: IFlorenceConfiguration
+    public sealed class FlorenceSharp<ConfigT>: IAsyncInitializable<SessionOptions?, FlorenceSharp<ConfigT>>, IDisposable
+        where ConfigT: struct, IFlorenceConfiguration
     {
         // https://huggingface.co/microsoft/Florence-2-large/blob/6bf179230dd8855083a51a5e11beb04aec1291fd/processing_florence2.py#L112
         private static readonly FrozenDictionary<FlorenceMode, string> PROMPTS_WITHOUT_INPUTS = 
@@ -63,9 +65,11 @@ namespace FlorenceSharp
 
         private readonly CLIPImagePreProcessor<CLIPImageProcessorConfig> ImagePreProcessor;
         
+        private readonly FlorenceBartTokenizer Tokenizer;
+        
         public FlorenceSharp(SessionOptions? onnxSessionOptions)
         {
-            OnnxSessionOptions = onnxSessionOptions ?? new();
+            OnnxSessionOptions = onnxSessionOptions ??= new();
             
             EncoderOnnxSession = new(ConfigT.EncoderModelPath, OnnxSessionOptions);
             DecoderOnnxSession = new(ConfigT.DecoderModelPath, OnnxSessionOptions);
@@ -73,8 +77,15 @@ namespace FlorenceSharp
             TokensEmbeddingOnnxSession = new(ConfigT.TokensEmbeddingModelPath, OnnxSessionOptions);
             
             ImagePreProcessor = new();
+            
+            Tokenizer = new(onnxSessionOptions);
         }
-
+        
+        public static async ValueTask<FlorenceSharp<ConfigT>> InitializeAsync(SessionOptions? onnxSessionOptions)
+        {
+            return new(onnxSessionOptions);
+        }
+        
         public string GenerateCaption(ReadOnlySpan<byte> imagePixels)
         {
             return GenerateCaptionCore(imagePixels, FlorenceMode.Caption);
@@ -94,20 +105,12 @@ namespace FlorenceSharp
         {
             var prompt = PROMPTS_WITHOUT_INPUTS[mode];
             
-            var encoded = EncodeSentence(prompt);
+            var encoded = Tokenizer.Tokenize(prompt);
             
             var imagePreProcessed = ImagePreProcessor.PreProcess(imagePixels);
             
-            throw new NotImplementedException();
-        }
-        
-        private SentenceEncoderOutput EncodeSentence(string sentence)
-        {
-            throw new NotImplementedException();
-        }
-        
-        private SentenceEncoderOutput EncodeSentences(ReadOnlySpan<string> sentences)
-        {
+            
+            
             throw new NotImplementedException();
         }
         
