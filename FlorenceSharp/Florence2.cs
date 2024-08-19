@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FlorenceSharp.Helpers;
 using FlorenceSharp.Processors.Imaging;
 using FlorenceSharp.Processors.Logits;
+using FlorenceSharp.Tensor;
 using FlorenceSharp.Tokenizers;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -164,10 +165,14 @@ namespace FlorenceSharp
             
             using var tokensEmbeddingOutput = TokensEmbeddingOnnxSession.Run(
             [
+                
                 NamedOnnxValue.CreateFromTensor(TokensEmbeddingInput.INPUT_IDS_NAME, tokenized.InputIDs),
             ]);
             
-            var tokenEmbeddings = (DenseTensor<float>) tokensEmbeddingOutput[0].Value;
+            // TODO: Technically it is possible to supply a PINNED ( IMPORTANT ) ManagedTensor to .Run(), which would mean that
+            // we can avoid copying! The downside is we have to calculate the resulting dimensions ourselves.
+            var tokenEmbeddings = ManagedTensor<float>
+                .CopyFromDenseTensor((DenseTensor<float>) tokensEmbeddingOutput[0].Value);
             
             var imagePreProcessed = ImagePreProcessor.PreProcess(imagePixels);
 
@@ -181,20 +186,20 @@ namespace FlorenceSharp
                 NamedOnnxValue.CreateFromTensor(VisionEncoderInput.PIXEL_VALUES_NAME, imagePixelsTensor),
             ]);
             
-            var imageFeatures = (DenseTensor<float>) visionEncoderOutput[0].Value;
+            var imageFeatures = ManagedTensor<float>
+                .CopyFromDenseTensor((DenseTensor<float>) visionEncoderOutput[0].Value);
+            
+            var managedAttentionMask = ManagedTensor<long>
+                .CopyFromDenseTensor((DenseTensor<long>) tokenized.AttentionMask);
             
             var (inputEmbeds, attentionMask) = MergeTokenEmbeddingsAndImageFeatures(
                 tokenEmbeddings,
                 imageFeatures,
-                tokenized.AttentionMask);
+                managedAttentionMask);
             
-            var encoderInputEmbedsOnnxValue = NamedOnnxValue.CreateFromTensor(
-                EncoderInput.INPUT_EMBEDS_NAME, 
-                inputEmbeds);
+            var encoderInputEmbedsOnnxValue = inputEmbeds.AsNamedOnnxValue(EncoderInput.INPUT_EMBEDS_NAME);
             
-            var encoderAttentionMaskOnnxValue = NamedOnnxValue.CreateFromTensor(
-                EncoderInput.ATTENTION_MASK_NAME, 
-                attentionMask);
+            var encoderAttentionMaskOnnxValue = attentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME);
             
             // https://imgur.com/a/wtqPvud
             using var encoderOutput = EncoderOnnxSession.Run(
@@ -225,24 +230,38 @@ namespace FlorenceSharp
             throw new NotImplementedException();
         }
         
-        private static (DenseTensor<float> mergedInputEmbeds, DenseTensor<long> mergedAttentionMask) MergeTokenEmbeddingsAndImageFeatures(
-            DenseTensor<float> tokenEmbeddings,
-            DenseTensor<float> imageFeatures,
-            DenseTensor<long> textAttentionMask)
+        private static (ManagedTensor<float> mergedInputEmbeds, ManagedTensor<long> mergedAttentionMask) MergeTokenEmbeddingsAndImageFeatures(
+            ManagedTensor<float> tokenEmbeddings,
+            ManagedTensor<float> imageFeatures,
+            ManagedTensor<long> textAttentionMask)
         {
-            var mergedInputEmbeds = TensorHelpers.ConcatenateOnDimension<float>(
-                axis: 1, 
-                tokenEmbeddings, 
-                imageFeatures);
+            // var mergedInputEmbeds = TensorHelpers.ConcatenateOnDimension<float>(
+            //     axis: 1, 
+            //     tokenEmbeddings, 
+            //     imageFeatures);
+            //
+            // var imageAttentionMask = TensorHelpers.CreateAndFillTensor(
+            //     fill: 1L, 
+            //     dimensions: imageFeatures.Dimensions[..2]);
+            //
+            // var mergedAttentionMask = TensorHelpers.ConcatenateOnDimension<long>(
+            //     axis: 1, 
+            //     textAttentionMask,
+            //     imageAttentionMask);
+            
+            var mergedInputEmbeds = SystemNumericsTensor.ConcatenateOnDimension<float>(
+                dimension: 1, 
+                [tokenEmbeddings, 
+                imageFeatures]);
             
             var imageAttentionMask = TensorHelpers.CreateAndFillTensor(
                 fill: 1L, 
-                dimensions: imageFeatures.Dimensions[..2]);
+                dimensions: imageFeatures.OnnxDenseTensor.Dimensions[..2]);
             
-            var mergedAttentionMask = TensorHelpers.ConcatenateOnDimension<long>(
-                axis: 1, 
-                textAttentionMask,
-                imageAttentionMask);
+            var mergedAttentionMask = SystemNumericsTensor.ConcatenateOnDimension<long>(
+                dimension: 1, 
+                [textAttentionMask,
+                imageAttentionMask]);
             
             return (mergedInputEmbeds, mergedAttentionMask);
         }
