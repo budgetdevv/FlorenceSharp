@@ -1,6 +1,12 @@
+import os
+
 import onnx;
-from transformers import AutoProcessor, BartTokenizer;
+from unittest.mock import patch
+from transformers import AutoModelForCausalLM, AutoProcessor, BartTokenizer
+from transformers.dynamic_module_utils import get_imports
 from onnxruntime_extensions import OrtPyFunction, gen_processing_models;
+import requests
+from PIL import Image;
 
 # BartTokenizer
 
@@ -31,7 +37,6 @@ def generate_models():
 
     # Export the ONNX model to a file
     onnx.save_model(OrtPyFunction(pre_processing_model).onnx_model, "florence2_tokenizer_encode.onnx");
-
     onnx.save_model(OrtPyFunction(post_processing_model).onnx_model, "florence2_tokenizer_decode.onnx");
 
     print("Model exported successfully!");
@@ -43,5 +48,79 @@ def test_encoding():
         print(output);
 
 
+# https://huggingface.co/microsoft/Florence-2-large-ft/discussions/4
+
+def fixed_get_imports(filename: str | os.PathLike) -> list[str]:
+    """Work around for https://huggingface.co/microsoft/phi-1_5/discussions/72."""
+    if not str(filename).endswith("/modeling_florence2.py"):
+        return get_imports(filename);
+    imports = get_imports(filename);
+    imports.remove("flash_attn");
+    return imports;
+
+
+def get_device_type():
+    import torch
+    if torch.cuda.is_available():
+        return "cuda";
+    else:
+        if (torch.backends.mps.is_available() and torch.backends.mps.is_built()):
+            return "mps";
+        else:
+            return "cpu";
+
+
+def run_florence2():
+    import subprocess
+
+    MODEL_NAME = "microsoft/Florence-2-base";
+
+    TASK = "<MORE_DETAILED_CAPTION>";
+
+    device = get_device_type();
+
+    if (device == "cuda"):
+        subprocess.run('pip install flash-attn --no-build-isolation',
+                       env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"},
+                       shell=True)
+        model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True);
+
+    else:
+        # https://huggingface.co/microsoft/Florence-2-base-ft/discussions/4
+        with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
+            model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, trust_remote_code=True);
+
+    model.to(device);
+
+    # Set up the prompt and image
+    prompt = TASK;
+    url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/tasks/car.jpg?download=true"
+    image = Image.open(requests.get(url, stream=True).raw);
+
+    # Process inputs
+    inputs = processor(text=prompt, images=image, return_tensors="pt").to(device);
+
+    # Generate output
+    generated_ids = model.generate(
+        input_ids=inputs["input_ids"],
+        pixel_values=inputs["pixel_values"],
+        max_new_tokens=1024,
+        num_beams=3,
+        do_sample=False,
+    ).to(device);
+
+    # Decode and post-process
+    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+    parsed_answer = processor.post_process_generation(
+        generated_text,
+        task=TASK,
+        image_size=(image.width, image.height)
+    )
+
+    print(parsed_answer)
+
+
 # Run any of the above functions
-test_encoding();
+
+# test_encoding();
+run_florence2();
