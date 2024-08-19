@@ -1,0 +1,71 @@
+using System;
+using System.Runtime.CompilerServices;
+using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime.Tensors;
+
+namespace FlorenceSharp.Tensor
+{
+    public struct ManagedTensor<T> where T: unmanaged
+    {
+        private readonly T[] ValuesArr;
+        
+        public readonly SystemNumericsTensors.Tensor<T> SNTensor;
+        
+        // public readonly OrtValue OnnxORTValue;
+
+        public readonly DenseTensor<T> OnnxDenseTensor;
+        
+        public ManagedTensor(TensorDimensions dimensions, bool initialize, bool pinned = false)
+            :this(initialize ? 
+                SystemNumericsTensor.Create<T>(dimensions, pinned) : 
+                SystemNumericsTensor.CreateUninitialized<T>(dimensions, pinned),
+                dimensions) { }
+
+        public ManagedTensor(SystemNumericsTensors.Tensor<T> snTensor): this(snTensor, snTensor.Lengths) { }
+        
+        public ManagedTensor(SystemNumericsTensors.Tensor<T> snTensor, TensorDimensions dimensions)
+        {
+            SNTensor = snTensor;
+
+            var memory = ValuesArr = GetValuesArray(snTensor);
+            
+            // OnnxORTValue = OrtValue.CreateTensorValueFromMemory<T>(pinnedMemory, dimensions.WidenDimensions());
+
+            // Span overload doesn't wrap memory ( Unsurprisingly )
+            OnnxDenseTensor = new(memory.AsMemory(), dimensions);
+            
+            return;
+            
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_values")]
+            static extern ref T[] GetValuesArray(SystemNumericsTensors.Tensor<T> tensor);
+        }
+
+        public static ManagedTensor<T> CopyFromDenseTensor(DenseTensor<T> tensor, bool pinned = false)
+        {
+            return SystemNumericsTensor.Create<T>(
+                tensor.Buffer.ToArray(), 
+                (TensorDimensions) tensor.Dimensions, 
+                pinned);
+        }
+        
+        public NamedOnnxValue AsNamedOnnxValue(string name)
+        {
+            return NamedOnnxValue.CreateFromTensor(name, OnnxDenseTensor);
+        }
+        
+        public static implicit operator SystemNumericsTensors.Tensor<T>(ManagedTensor<T> tensor)
+        {
+            return tensor.SNTensor;
+        }
+        
+        public static implicit operator DenseTensor<T>(ManagedTensor<T> tensor)
+        {
+            return tensor.OnnxDenseTensor;
+        }
+        
+        public static implicit operator ManagedTensor<T>(SystemNumericsTensors.Tensor<T> tensor)
+        {
+            return new(tensor);
+        }
+    }
+}
