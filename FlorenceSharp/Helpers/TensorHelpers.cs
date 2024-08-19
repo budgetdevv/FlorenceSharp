@@ -38,7 +38,7 @@ namespace FlorenceSharp.Helpers
         /// Join a sequence of tensors along an existing axis.
         /// </summary>
         /// <param name="tensors">The tensors must have the same shape, except in the dimension corresponding to axis (the first, by default).</param>
-        public static Tensor<T> Concatenate<T>(params scoped ReadOnlySpan<DenseTensor<T>> tensors)
+        public static DenseTensor<T> Concatenate<T>(params scoped ReadOnlySpan<DenseTensor<T>> tensors)
         {
             var convertedTensors = new SystemNumericsTensors.Tensor<T>[tensors.Length];
 
@@ -59,7 +59,7 @@ namespace FlorenceSharp.Helpers
         /// </summary>
         /// <param name="tensors">The tensors must have the same shape, except in the dimension corresponding to axis (the first, by default).</param>
         /// <param name="axis">The axis along which the tensors will be joined. If axis is -1, arrays are flattened before use. Default is 0.</param>
-        public static Tensor<T> ConcatenateOnDimension<T>(
+        public static DenseTensor<T> ConcatenateOnDimension<T>(
             int axis,
             params scoped ReadOnlySpan<DenseTensor<T>> tensors)
         {
@@ -75,6 +75,29 @@ namespace FlorenceSharp.Helpers
             var concatenated = SystemNumericsTensor.ConcatenateOnDimension<T>(axis, convertedTensors);
 
             return concatenated.ToOnnxDenseTensor();
+        }
+        
+        public static int GetTotalSizeForDimension(ReadOnlySpan<int> dimensions)
+        {
+            var totalSize = 1;
+            
+            foreach (var dimension in dimensions)
+            {
+                totalSize *= dimension;
+            }
+            
+            return totalSize;
+        }
+
+        public static DenseTensor<T> CreateAndFillTensor<T>(T fill, ReadOnlySpan<int> dimensions)
+        {
+            var totalSize = GetTotalSizeForDimension(dimensions);
+
+            var tensor = new DenseTensor<T>(totalSize);
+            
+            tensor.Fill(fill);
+            
+            return tensor;
         }
     }
 }

@@ -31,7 +31,7 @@
     <!--  https://youtrack.jetbrains.com/issue/RIDER-26906 -->
     <Target Name="ExcludeAnnoyingDylib" AfterTargets="ResolveAssemblyReferences">
         <ItemGroup>
-            <None Update="@(None)" Link="true">
+            <None Update="@(None)">
                 <Visible>false</Visible>
             </None>
         </ItemGroup>
