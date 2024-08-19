@@ -31,7 +31,7 @@ tokenizer: BartTokenizer = processor.tokenizer;
 print(type(tokenizer));
 
 
-def generate_models():
+def generate_tokenizer_models():
     # pre_kwargs={}, post_kwargs={} tells it to generate both pre and post-processing onnx models for the tokenizer
     pre_processing_model, post_processing_model = gen_processing_models(tokenizer, pre_kwargs={}, post_kwargs={});
 
@@ -114,13 +114,13 @@ def run_florence2():
     parsed_answer = processor.post_process_generation(
         generated_text,
         task=TASK,
-        image_size=(image.width, image.height)
-    )
+        image_size=(image.width, image.height));
 
-    print(parsed_answer)
+    print(parsed_answer);
 
 
 # Run any of the above functions
 
+# generate_tokenizer_models();
 # test_encoding();
 run_florence2();
