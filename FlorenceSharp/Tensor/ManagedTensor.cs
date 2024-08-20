@@ -42,6 +42,13 @@ namespace FlorenceSharp.Tensor
 
         public static ManagedTensor<T> CopyFromDenseTensor(DenseTensor<T> tensor, bool pinned = false)
         {
+            // Unfortunately it is impossible to wrap DenseTensor, since ManagedTensor support
+            // System.Numerics.Tensors.Tensor<T> as well, which is backed by an actual array.
+            
+            // Potential solution for avoiding copies: 
+            // Pre-allocate pinned ManagedTensor<T> and use it as output for InferenceSession.Run()
+            // Downside is having to manually compute output dimensions.
+            
             return SystemNumericsTensor.Create<T>(
                 tensor.Buffer.ToArray(), 
                 (TensorDimensions) tensor.Dimensions, 
