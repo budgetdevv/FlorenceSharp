@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Frozen;
+using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text.Json;
 using FlorenceSharp.Helpers;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -39,14 +43,20 @@ namespace FlorenceSharp.Tokenizers
         
         private readonly InferenceSession TokenizerEncodeSession, TokenizerDecodeSession;
 
+        public readonly FrozenDictionary<string, int> VocabularyToTokenIDMap;
+        
+        public readonly string[] Vocabulary;
+        
         private const string 
             ENCODER_MODEL_PATH = "florence2_tokenizer_encode.onnx",
-            DECODER_MODEL_PATH = "florence2_tokenizer_decode.onnx";
+            DECODER_MODEL_PATH = "florence2_tokenizer_decode.onnx",
+            VOCAB_PATH = "vocab.json";
         
         public FlorenceBartTokenizer(SessionOptions sessionOptions)
         {
-            sessionOptions.RegisterOrtExtensions();
             SessionOptions = sessionOptions;
+            
+            sessionOptions.RegisterOrtExtensions();
 
             var currentAssembly = CURRENT_ASSEMBLY;
             
@@ -57,6 +67,13 @@ namespace FlorenceSharp.Tokenizers
             TokenizerDecodeSession = new(
                 ResourceHelpers.GetResourceBytes(currentAssembly, DECODER_MODEL_PATH)!,
                 sessionOptions);
+
+            var map = VocabularyToTokenIDMap = JsonSerializer
+                .Deserialize<Dictionary<string, int>>(
+                    ResourceHelpers.GetResourceBytes(currentAssembly, VOCAB_PATH))!
+                .ToFrozenDictionary();
+            
+            Vocabulary = ImmutableCollectionsMarshal.AsArray(map.Keys)!;
         }
 
         public EncoderOutput Tokenize(string sentence)

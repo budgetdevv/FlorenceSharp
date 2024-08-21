@@ -5,6 +5,7 @@ using System.Text;
 using FlorenceSharp.Helpers;
 using FlorenceSharp.Tensor;
 using FlorenceSharp.Tokenizers;
+using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace Playground
@@ -14,19 +15,19 @@ namespace Playground
         [Experimental("SYSLIB5001")]
         private static void Main(string[] args)
         {
+            var tokenizer = new FlorenceBartTokenizer(new());
+            
             while (true)
             {
-                LoopBody();
+                LoopBody(tokenizer);
             }
         }
 
-        private static void LoopBody()
+        private static void LoopBody(FlorenceBartTokenizer tokenizer)
         {
             Console.Write("Input text to tokenize:");
             
             var sentences = Console.ReadLine()!.Split('|');
-            
-            var tokenizer = new FlorenceBartTokenizer(new());
             
             var output = tokenizer.Tokenize(sentences);
 

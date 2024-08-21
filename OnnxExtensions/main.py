@@ -110,7 +110,8 @@ def run_florence2():
     ).to(device);
 
     # Decode and post-process
-    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0];
+
     parsed_answer = processor.post_process_generation(
         generated_text,
         task=TASK,

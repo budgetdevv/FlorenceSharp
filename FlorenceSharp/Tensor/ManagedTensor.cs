@@ -5,9 +5,9 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace FlorenceSharp.Tensor
 {
-    public struct ManagedTensor<T> where T: unmanaged
+    public readonly struct ManagedTensor<T> where T: unmanaged
     {
-        private readonly T[] ValuesArr;
+        public readonly T[] ValuesArr;
         
         public readonly SystemNumericsTensors.Tensor<T> SNTensor;
         
@@ -27,12 +27,12 @@ namespace FlorenceSharp.Tensor
         {
             SNTensor = snTensor;
 
-            var memory = ValuesArr = GetValuesArray(snTensor);
+            var arr = ValuesArr = GetValuesArray(snTensor);
             
             // OnnxORTValue = OrtValue.CreateTensorValueFromMemory<T>(pinnedMemory, dimensions.WidenDimensions());
 
             // Span overload doesn't wrap memory ( Unsurprisingly )
-            OnnxDenseTensor = new(memory.AsMemory(), dimensions);
+            OnnxDenseTensor = new(arr.AsMemory(), dimensions);
             
             return;
             

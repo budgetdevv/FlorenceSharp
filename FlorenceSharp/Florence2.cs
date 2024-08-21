@@ -2,6 +2,7 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using FlorenceSharp.Configs;
 using FlorenceSharp.Helpers;
 using FlorenceSharp.Processors.Imaging;
 using FlorenceSharp.Processors.Logits;
@@ -12,20 +13,7 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace FlorenceSharp
 {
-    public struct DefaultFlorence2Config: IFlorenceConfiguration
-    {
-        // https://huggingface.co/onnx-community/Florence-2-large/tree/main/onnx
-
-        private const string BASE_PATH = "FlorenceSharp/Models";
-        
-        public static string EncoderModelPath => $"{BASE_PATH}/encoder_model.onnx";
-        
-        public static string DecoderModelPath => $"{BASE_PATH}/decoder_model.onnx";
-        
-        public static string VisionEncoderModelPath => $"{BASE_PATH}/vision_encoder.onnx";
-        
-        public static string TokensEmbeddingModelPath => $"{BASE_PATH}/embed_tokens.onnx";
-    }
+    public struct DefaultFlorence2Config: IDefaultFlorence2Config;
 
     public sealed class Florence2(SessionOptions? onnxSessionOptions = null):
         Florence2<DefaultFlorence2Config>(onnxSessionOptions);
@@ -189,36 +177,43 @@ namespace FlorenceSharp
             var imageFeatures = ManagedTensor<float>
                 .CopyFromDenseTensor((DenseTensor<float>) visionEncoderOutput[0].Value);
             
-            var managedAttentionMask = ManagedTensor<long>
-                .CopyFromDenseTensor((DenseTensor<long>) tokenized.AttentionMask);
+            var attentionMask = ManagedTensor<long>
+                .CopyFromDenseTensor(tokenized.AttentionMask);
             
-            var (inputEmbeds, attentionMask) = MergeTokenEmbeddingsAndImageFeatures(
+            var (mergedInputEmbeds, mergedAttentionMask) = 
+                MergeTokenEmbeddingsAndImageFeatures(
                 tokenEmbeddings,
                 imageFeatures,
-                managedAttentionMask);
-            
-            var encoderInputEmbedsOnnxValue = inputEmbeds.AsNamedOnnxValue(EncoderInput.INPUT_EMBEDS_NAME);
-            
-            var encoderAttentionMaskOnnxValue = attentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME);
+                attentionMask);
             
             // https://imgur.com/a/wtqPvud
             using var encoderOutput = EncoderOnnxSession.Run(
             [
-                encoderInputEmbedsOnnxValue,
-                encoderAttentionMaskOnnxValue,
+                mergedInputEmbeds.AsNamedOnnxValue(EncoderInput.INPUT_EMBEDS_NAME),
+                mergedAttentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME),
             ]);
             
-            var encoderHiddenStates = (DenseTensor<float>) encoderOutput[0].Value;
+            var encoderHiddenStates = ManagedTensor<float>
+                .CopyFromDenseTensor((DenseTensor<float>) encoderOutput[0].Value);
             
-            // https://imgur.com/a/iVRFiGv
-            using var decoderOutput = DecoderOnnxSession.Run(
-            [
-                encoderInputEmbedsOnnxValue,
-                encoderAttentionMaskOnnxValue,
-                NamedOnnxValue.CreateFromTensor(DecoderInput.ENCODER_HIDDEN_STATES_NAME, encoderHiddenStates),
-            ]);
+            return DecodeAndGenerateText(encoderHiddenStates, mergedAttentionMask);
+        }
+
+        private string DecodeAndGenerateText(
+            ManagedTensor<float> encoderHiddenStates,
+            ManagedTensor<long> mergedAttentionMask)
+        {
             
-            var logits = (DenseTensor<float>) decoderOutput[0].Value;
+            
+            // // https://imgur.com/a/iVRFiGv
+            // using var decoderOutput = DecoderOnnxSession.Run(
+            // [
+            //     encoderInputEmbedsOnnxValue,
+            //     encoderAttentionMaskOnnxValue,
+            //     NamedOnnxValue.CreateFromTensor(DecoderInput.ENCODER_HIDDEN_STATES_NAME, encoderHiddenStates),
+            // ]);
+            //
+            // var logits = (DenseTensor<float>) decoderOutput[0].Value;
             
             // LogitsProcessor.ProcessLogits(logits);
             //
