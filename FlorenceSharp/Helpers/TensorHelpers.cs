@@ -126,12 +126,17 @@ namespace FlorenceSharp.Helpers
                     NamedOnnxValue.CreateFromTensor<float>(
                         "logits", 
                         logitsInput),
+                    
+                    NamedOnnxValue.CreateFromTensor<ulong>(
+                        "k",
+                        kInputBuffer),
                 ], 
                 outputs:
                 [ 
                     NamedOnnxValue.CreateFromTensor<float>(
                         "values",
                         logitsOutput),
+                    
                     NamedOnnxValue.CreateFromTensor<long>(
                         "indices",
                         indicesOutput),
