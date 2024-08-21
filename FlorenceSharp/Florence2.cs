@@ -3,6 +3,7 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FlorenceSharp.Configs;
+using FlorenceSharp.DecodingStrategies;
 using FlorenceSharp.Helpers;
 using FlorenceSharp.Processors.Imaging;
 using FlorenceSharp.Processors.Logits;
@@ -108,6 +109,8 @@ namespace FlorenceSharp
 
         private readonly FlorenceLogitsProcessor LogitsProcessor;
         
+        private readonly BeamSearch<ConfigT> BeamSearch;
+        
         protected Florence2(SessionOptions? onnxSessionOptions = null)
         {
             OnnxSessionOptions = onnxSessionOptions ??= new();
@@ -122,6 +125,8 @@ namespace FlorenceSharp
             Tokenizer = new(onnxSessionOptions);
             
             LogitsProcessor = new();
+            
+            BeamSearch = new();
         }
         
         public static async ValueTask<Florence2<ConfigT>> InitializeAsync(SessionOptions? onnxSessionOptions)
