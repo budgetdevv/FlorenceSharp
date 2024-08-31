@@ -203,8 +203,8 @@ namespace FlorenceSharp.DecodingStrategies
         }
         
         public Memory<long> Search(
-            ManagedTensor<long> encoderAttentionMask,
             ManagedTensor<float> encoderHiddenStates,
+            ManagedTensor<long> encoderAttentionMask,
             in Florence2<ConfigT> florence2,
             in FlorenceBartTokenizer tokenizer,
             in FlorenceStopCriteria<ConfigT> stoppingCriteria)
@@ -327,13 +327,14 @@ namespace FlorenceSharp.DecodingStrategies
                         beams);
                 }
 
-                var isDone = false;
+                var isDone = true;
 
                 for (currentBeamIndex = 0; currentBeamIndex < numBeams; currentBeamIndex++)
                 {
                     ref var currentBeam = ref beams[currentBeamIndex];
                     
-                    isDone |= currentBeam.UpdateAndReturnDoneState(stoppingCriteria, currentStepIndex);
+                    // If any of the beams are NOT done yet, isDone will be false.
+                    isDone &= currentBeam.UpdateAndReturnDoneState(stoppingCriteria, currentStepIndex);
                 }
 
                 if (isDone)

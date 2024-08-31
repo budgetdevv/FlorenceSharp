@@ -279,8 +279,8 @@ namespace FlorenceSharp
             ref readonly var beamSearcher = ref BeamSearcher;
 
             beamSearcher.Search(
-                mergedAttentionMask,
                 encoderHiddenStates,
+                mergedAttentionMask,
                 this,
                 in Tokenizer,
                 in StoppingCriteria);
