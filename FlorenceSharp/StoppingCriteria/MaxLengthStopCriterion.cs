@@ -1,12 +1,18 @@
 using System;
+using System.Runtime.CompilerServices;
+using FlorenceSharp.Configs;
 
 namespace FlorenceSharp.StoppingCriteria
 {
-    public readonly struct MaxLengthStopCriterion: IStoppingCriterion
+    public readonly struct MaxLengthStopCriterion<ConfigT>: IStoppingCriterion
+        where ConfigT: IFlorenceGenerationConfiguration
     {
-        public bool IsDone(ReadOnlySpan<long> inputIDs, ReadOnlySpan<double> scores)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsDone(ReadOnlySpan<long> inputIDs)
         {
-            throw new NotImplementedException();
+            var maxLength = ConfigT.MaxLength;
+            
+            return inputIDs.Length >= maxLength;
         }
     }
 }

@@ -85,7 +85,8 @@ namespace FlorenceSharp.Tokenizers
         public EncoderOutput Tokenize(Memory<string> sentences)
         {
             var inputTensor = new DenseTensor<string>(sentences, [ sentences.Length ]);
-            
+         
+            // https://imgur.com/a/LJacvsC
             var output = TokenizerEncodeSession.Run(
             [
                 NamedOnnxValue.CreateFromTensor(EncoderInput.TEXT_INPUT_NAME, inputTensor),
@@ -100,7 +101,8 @@ namespace FlorenceSharp.Tokenizers
         public string Decode(Memory<long> inputIDs)
         {
             var inputTensor = new DenseTensor<long>(inputIDs, [ inputIDs.Length ]);
-            
+         
+            // https://imgur.com/a/gHk84M6
             var output = TokenizerDecodeSession.Run(
             [
                 NamedOnnxValue.CreateFromTensor(DecoderInput.IDS_INPUT_NAME, inputTensor),
@@ -110,6 +112,12 @@ namespace FlorenceSharp.Tokenizers
 
             // Get the string from the tensor ( There's only 1 string )
             return outputTensor[0];
+        }
+        
+        public int GetTokenID(string token)
+        {
+            // Yes, we actually want it to throw an exception if the token doesn't exist
+            return VocabularyToTokenIDMap[token];
         }
         
         public void Dispose()

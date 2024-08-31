@@ -7,6 +7,7 @@ using FlorenceSharp.DecodingStrategies;
 using FlorenceSharp.Helpers;
 using FlorenceSharp.Processors.Imaging;
 using FlorenceSharp.Processors.Logits;
+using FlorenceSharp.StoppingCriteria;
 using FlorenceSharp.Tensor;
 using FlorenceSharp.Tokenizers;
 using Microsoft.ML.OnnxRuntime;
@@ -42,19 +43,24 @@ namespace FlorenceSharp
             public const string PIXEL_VALUES_NAME = "pixel_values";
         }
         
-        private struct TokensEmbeddingInput
+        private struct TokenEmbeddingsInput
         {
             public const string INPUT_IDS_NAME = "input_ids";
         }
+
+        private struct TokenEmbeddingsOutput
+        {
+            public const string INPUT_EMBEDS_NAME = "input_embeds";
+        }
     }
-    
-    public partial class Florence2<ConfigT>: IAsyncInitializable<SessionOptions?, Florence2<ConfigT>>, IDisposable
-        where ConfigT: struct, IFlorenceConfiguration
+
+    public partial class Florence2<ConfigT> : IAsyncInitializable<SessionOptions?, Florence2<ConfigT>>, IDisposable
+        where ConfigT : struct, IFlorenceConfiguration
     {
         // https://huggingface.co/microsoft/Florence-2-large/blob/6bf179230dd8855083a51a5e11beb04aec1291fd/processing_florence2.py#L112
-        private static readonly FrozenDictionary<FlorenceMode, string> PROMPTS_WITHOUT_INPUTS = 
-            new Dictionary<FlorenceMode, string>() 
-            { 
+        private static readonly FrozenDictionary<FlorenceMode, string> PROMPTS_WITHOUT_INPUTS =
+            new Dictionary<FlorenceMode, string>()
+            {
                 { FlorenceMode.Caption, "What does this image describe?" },
                 { FlorenceMode.DetailedCaption, "Describe in detail what is shown in the image." },
                 { FlorenceMode.MoreDetailedCaption, "Describe with a paragraph what is shown in the image." },
@@ -63,11 +69,11 @@ namespace FlorenceSharp
                 { FlorenceMode.ObjectDetection, "Locate the objects with category name in the image." },
                 { FlorenceMode.DenseRegionCaption, "Locate the objects in the image, with their descriptions." },
                 { FlorenceMode.RegionProposal, "Locate the region proposals in the image." },
-                
+
             }.ToFrozenDictionary();
 
         private const string INPUT_PLACEHOLDER = "{input}";
-        
+
         // https://huggingface.co/microsoft/Florence-2-large/blob/6bf179230dd8855083a51a5e11beb04aec1291fd/processing_florence2.py#L123
         private static readonly FrozenDictionary<FlorenceMode, string> PROMPTS_WITH_INPUTS =
             new Dictionary<FlorenceMode, string>()
@@ -80,75 +86,127 @@ namespace FlorenceSharp
                 { FlorenceMode.RegionToDescription, $"What does the region {INPUT_PLACEHOLDER} describe?" },
                 { FlorenceMode.RegionToOCR, $"What text is in the region {INPUT_PLACEHOLDER}?" },
             }.ToFrozenDictionary();
-        
+
         private readonly SessionOptions OnnxSessionOptions;
-        
-        private readonly InferenceSession 
+
+        private readonly InferenceSession
             EncoderOnnxSession,
             DecoderOnnxSession,
             VisionEncoderOnnxSession,
             TokensEmbeddingOnnxSession;
-        
+
         // https://huggingface.co/microsoft/Florence-2-large/blob/main/preprocessor_config.json
-        private struct CLIPImageProcessorConfig: ICLIPImagePreProcessorConfig
+        private struct CLIPImageProcessorConfig : ICLIPImagePreProcessorConfig
         {
             public static int ImageWidth => 768;
-            
+
             public static int ImageHeight => ImageWidth;
-            
+
             public static int ImageSequenceLength => 577;
 
-            public static float[] ImageMean => [ 0.485f, 0.456f, 0.406f ];
-            
-            public static float[] ImageStd => [ 0.229f, 0.224f, 0.225f ];
+            public static float[] ImageMean => [0.485f, 0.456f, 0.406f];
+
+            public static float[] ImageStd => [0.229f, 0.224f, 0.225f];
         }
 
         private readonly CLIPImagePreProcessor<CLIPImageProcessorConfig> ImagePreProcessor;
-        
+
         private readonly FlorenceBartTokenizer Tokenizer;
 
         private readonly FlorenceLogitsProcessor LogitsProcessor;
-        
-        private readonly BeamSearch<ConfigT> BeamSearch;
-        
+
+        private readonly BeamSearcher<ConfigT> BeamSearcher;
+
+        private readonly FlorenceStopCriteria<ConfigT> StoppingCriteria;
+
         protected Florence2(SessionOptions? onnxSessionOptions = null)
         {
             OnnxSessionOptions = onnxSessionOptions ??= new();
-            
+
             EncoderOnnxSession = new(ConfigT.EncoderModelPath, OnnxSessionOptions);
             DecoderOnnxSession = new(ConfigT.DecoderModelPath, OnnxSessionOptions);
             VisionEncoderOnnxSession = new(ConfigT.VisionEncoderModelPath, OnnxSessionOptions);
             TokensEmbeddingOnnxSession = new(ConfigT.TokensEmbeddingModelPath, OnnxSessionOptions);
-            
+
             ImagePreProcessor = new();
-            
+
             Tokenizer = new(onnxSessionOptions);
-            
+
             LogitsProcessor = new();
-            
-            BeamSearch = new();
+
+            BeamSearcher = new();
+
+            StoppingCriteria = new();
         }
-        
+
         public static async ValueTask<Florence2<ConfigT>> InitializeAsync(SessionOptions? onnxSessionOptions)
         {
             return new(onnxSessionOptions);
         }
-        
+
         public string GenerateCaption(ReadOnlySpan<byte> imagePixels)
         {
             return GenerateCaptionCore(imagePixels, FlorenceMode.Caption);
         }
-        
+
         public string GenerateDetailedCaption(ReadOnlySpan<byte> imagePixels)
         {
             return GenerateCaptionCore(imagePixels, FlorenceMode.DetailedCaption);
         }
-        
+
         public string GenerateMoreDetailedCaption(ReadOnlySpan<byte> imagePixels)
         {
             return GenerateCaptionCore(imagePixels, FlorenceMode.MoreDetailedCaption);
         }
 
+        internal ManagedTensor<float> GenerateEmbeddingsForInputIDs(DenseTensor<long> inputIDs)
+        {
+            var inputIDsOnnxValue = NamedOnnxValue.CreateFromTensor(TokenEmbeddingsInput.INPUT_IDS_NAME, inputIDs);
+            
+            return GenerateEmbeddingsForInputIDs(inputIDsOnnxValue, inputIDs.Dimensions);
+        }
+        
+        internal ManagedTensor<float> GenerateEmbeddingsForInputIDs(Memory<long> inputIDs, int batchSize)
+        {
+            var tensor = new DenseTensor<long>(inputIDs, [ batchSize, inputIDs.Length / batchSize ]);
+            
+            return GenerateEmbeddingsForInputIDs(tensor);
+        }
+        
+        internal ManagedTensor<float> GenerateEmbeddingsForInputIDs(NamedOnnxValue inputIDs, TensorDimensions dimensions)
+        {
+            var inputEmbeds = new ManagedTensor<float>(
+                // [ batch_size, sequence_length, 1024 ]
+                // 1024 is probably the size of the embeddings
+                // inputIDs.Dimensions is batch_size, sequence_length ]
+                dimensions: (ReadOnlySpan<nint>) [ ..(ReadOnlySpan<nint>) dimensions, 1024 ],
+                initialize: true);
+            
+            // https://imgur.com/a/iyGFpRu
+            // TODO: Does tokenized.InputIDs have the required dimensions?
+            // Required Dimensions: [ batch_size, sequence_length ]
+            TokensEmbeddingOnnxSession.Run(
+                inputs: 
+                [
+                    inputIDs,
+                ],
+                outputs: 
+                [
+                    NamedOnnxValue.CreateFromTensor(TokenEmbeddingsOutput.INPUT_EMBEDS_NAME, inputEmbeds.OnnxDenseTensor),
+                ]
+            );
+
+           return inputEmbeds;
+        }
+
+        internal ManagedTensor<float> DecodeIntoLogits(
+            ManagedTensor<long> encoderAttentionMask,
+            ManagedTensor<float> encoderHiddenStates,
+            ManagedTensor<float> inputEmbeds)
+        {
+            throw new NotImplementedException();
+        }
+        
         private string GenerateCaptionCore(ReadOnlySpan<byte> imagePixels, FlorenceMode mode)
         {
             var prompt = PROMPTS_WITHOUT_INPUTS[mode];
@@ -156,16 +214,7 @@ namespace FlorenceSharp
             // TODO: We can make a cache for constant prompts.
             var tokenized = Tokenizer.Tokenize(prompt);
             
-            using var tokensEmbeddingOutput = TokensEmbeddingOnnxSession.Run(
-            [
-                
-                NamedOnnxValue.CreateFromTensor(TokensEmbeddingInput.INPUT_IDS_NAME, tokenized.InputIDs),
-            ]);
-            
-            // TODO: Technically it is possible to supply a PINNED ( IMPORTANT ) ManagedTensor to .Run(), which would mean that
-            // we can avoid copying! The downside is we have to calculate the resulting dimensions ourselves.
-            var tokenEmbeddings = ManagedTensor<float>
-                .CopyFromDenseTensor((DenseTensor<float>) tokensEmbeddingOutput[0].Value);
+            var tokenEmbeddings = GenerateEmbeddingsForInputIDs(tokenized.InputIDs);
             
             var imagePreProcessed = ImagePreProcessor.PreProcess(imagePixels);
 
@@ -179,6 +228,8 @@ namespace FlorenceSharp
                 NamedOnnxValue.CreateFromTensor(VisionEncoderInput.PIXEL_VALUES_NAME, imagePixelsTensor),
             ]);
             
+            // TODO: Technically it is possible to supply a PINNED ( IMPORTANT ) ManagedTensor to .Run(), which would mean that
+            // we can avoid copying! The downside is we have to calculate the resulting dimensions ourselves.
             var imageFeatures = ManagedTensor<float>
                 .CopyFromDenseTensor((DenseTensor<float>) visionEncoderOutput[0].Value);
             
@@ -208,8 +259,6 @@ namespace FlorenceSharp
             ManagedTensor<float> encoderHiddenStates,
             ManagedTensor<long> mergedAttentionMask)
         {
-            
-            
             // // https://imgur.com/a/iVRFiGv
             // using var decoderOutput = DecoderOnnxSession.Run(
             // [
@@ -226,6 +275,15 @@ namespace FlorenceSharp
             // // ...
             //
             // var response = Tokenizer.Decode(logits);
+
+            ref readonly var beamSearcher = ref BeamSearcher;
+
+            beamSearcher.Search(
+                mergedAttentionMask,
+                encoderHiddenStates,
+                this,
+                in Tokenizer,
+                in StoppingCriteria);
             
             throw new NotImplementedException();
         }

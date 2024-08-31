@@ -26,6 +26,8 @@ namespace FlorenceSharp.Configs
         
         static uint IFlorenceGenerationConfiguration.MaxLength => 1025;
         
+        // The default for GenerationConfig is 50, but seeing that we only care about the top 3 beams,
+        // we might want to consider setting this to 3 instead.
         static uint IFlorenceGenerationConfiguration.TopK => 50;
         
         static bool IFlorenceGenerationConfiguration.EarlyStopping => true;
