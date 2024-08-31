@@ -13,7 +13,7 @@ using FlorenceSharp.Tokenizers;
 
 namespace FlorenceSharp.DecodingStrategies
 {
-    public readonly struct BeamSearcher<ConfigT> where ConfigT : struct, IFlorenceConfiguration
+    public struct BeamSearcher<ConfigT> where ConfigT : struct, IFlorenceConfiguration
     {
         // https://huggingface.co/spaces/m-ric/beam_search_visualizer
 
@@ -50,8 +50,6 @@ namespace FlorenceSharp.DecodingStrategies
             
             public double CumulativeScore { get; private set; }
 
-            public bool IsDone { get; private set; }
-
             public Beam(int endOfSequenceID)
             {
                 var generatedTokenIDs = GeneratedTokenIDs = GC.AllocateUninitializedArray<long>(
@@ -62,8 +60,6 @@ namespace FlorenceSharp.DecodingStrategies
                 MemoryMarshal.GetArrayDataReference(generatedTokenIDs) = endOfSequenceID;
                 
                 CumulativeScore = 0;
-                
-                IsDone = false;
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -99,13 +95,112 @@ namespace FlorenceSharp.DecodingStrategies
                 CumulativeScore = result.CumulativeTokenScore;
             }
 
-            public bool UpdateAndReturnDoneState(
+            public bool BackingMemoryEquals(SampleResult result, Beam[] beams)
+            {
+                return Unsafe.AreSame(ref this, ref beams[result.ParentBeamIndex]);
+            }
+
+            public bool IsDone(
                 in FlorenceStopCriteria<ConfigT> stoppingCriteria,
                 int currentStepIndex)
             {
-                return IsDone = stoppingCriteria.IsDone(
+                return stoppingCriteria.IsDone(
                     inputIDs: GeneratedTokenIDs.AsSpan(0, currentStepIndex)
                 );
+            }
+        }
+
+        private struct Hypothesis
+        {
+            private readonly long[] GeneratedTokenIDs;
+
+            private int Length;
+            
+            // FinalScore takes into account of length penalty
+            public double FinalScore { get; private set; }
+
+            public Hypothesis()
+            {
+                GeneratedTokenIDs = GC.AllocateUninitializedArray<long>(
+                    length: (int) ConfigT.MaxLength,
+                    pinned: true);
+                
+                Length = -1;
+                
+                FinalScore = double.MinValue;
+            }
+
+            public void Apply(Beam beam, int currentStepIndex)
+            {
+                var currentSlice = beam.GetCurrentStepSlice(currentStepIndex);
+                
+                currentSlice.CopyTo(GeneratedTokenIDs);
+                
+                Length = currentStepIndex;
+                
+                // score = sum_logprobs / (hyp.shape[-1] ** self.length_penalty)
+                // https://huggingface.co/transformers/v3.5.1/_modules/transformers/generation_beam_search.html
+                FinalScore = beam.CumulativeScore / Math.Pow(Length, ConfigT.LengthPenalty);
+            }
+
+            public Memory<long> GetMemorySlice()
+            {
+                return GeneratedTokenIDs.AsMemory(0, Length);
+            }
+        }
+
+        private struct HypothesisCollection
+        {
+            private readonly Hypothesis[] Hypotheses;
+            
+            private int Count;
+            
+            public HypothesisCollection()
+            {
+                Hypotheses = GC.AllocateUninitializedArray<Hypothesis>(
+                    length: (int) ConfigT.NumBeams,
+                    pinned: true);
+                
+                Count = 0;
+            }
+            
+            public bool IsDone => Count >= ConfigT.NumBeams;
+
+            public void Add(Beam beam, int currentStepIndex)
+            {
+                var writeIndex = Count++;
+                
+                Debug.Assert(Count <= ConfigT.NumBeams);
+
+                ref var currentHypothesis = ref Hypotheses[writeIndex];
+                
+                currentHypothesis.Apply(beam, currentStepIndex);
+            }
+            
+            public Hypothesis GetBestHypothesis()
+            {
+                Debug.Assert(IsDone);
+                
+                var hypotheses = Hypotheses;
+                
+                var bestHypothesis = hypotheses[0];
+                
+                for (int i = 1; i < Count; i++)
+                {
+                    var currentHypothesis = hypotheses[i];
+                    
+                    if (currentHypothesis.FinalScore > bestHypothesis.FinalScore)
+                    {
+                        bestHypothesis = currentHypothesis;
+                    }
+                }
+                
+                return bestHypothesis;
+            }
+            
+            public void Clear()
+            {
+                Count = 0;
             }
         }
         
@@ -118,6 +213,8 @@ namespace FlorenceSharp.DecodingStrategies
         private readonly HashSet<int> OutstandingBeamIndices;
 
         private readonly List<SampleResult> SampleResultsWithDuplicateBeamIndex;
+
+        private HypothesisCollection Hypotheses;
         
         private const string EOS_TOKEN = FlorenceSpecialTokens.END_OF_SEQUENCE;
 
@@ -193,10 +290,12 @@ namespace FlorenceSharp.DecodingStrategies
             for (int i = 0; i < numBeams; i++)
             {
                 var tokenID = topKIndices[i];
+
+                var logProb = Math.Log(logitsSoftmax[i]);
                 
                 sampledResults[currentBeamIndex + i] = new(
                     generatedTokenId: (int) tokenID,
-                    cumulativeTokenScore: Math.Log(logitsSoftmax[i]),
+                    cumulativeTokenScore: beam.CumulativeScore * logProb,
                     parentBeamIndex: currentBeamIndex
                 );
             }
@@ -254,6 +353,11 @@ namespace FlorenceSharp.DecodingStrategies
             
             var sampleResultsWithDuplicateBeamIndex = SampleResultsWithDuplicateBeamIndex;
             
+            ref var hypothesisCollection = ref Hypotheses;
+            
+            // Clear Hypotheses
+            hypothesisCollection.Clear();
+            
             for (int currentStepIndex = INITIAL_STEP_INDEX + 1; true; currentStepIndex++)
             {
                 // Now the fun begins
@@ -282,6 +386,7 @@ namespace FlorenceSharp.DecodingStrategies
                         florence2);
                 }
                 
+                // Sort sampled results based on cumulative score.
                 Array.Sort(sampledResults);
                 
                 // Pick the best beams ( We only require numBeams amount )
@@ -327,21 +432,57 @@ namespace FlorenceSharp.DecodingStrategies
                         beams);
                 }
 
-                var isDone = true;
-
+                // Should a beam be done, we add it to Hypotheses. The beam then takes the next best sample.
+                
+                // Say we usually take 3 ( 1 for each beam ). [ 4, 3, 2 ]
+                // Beams:     1  2  3
+                // Samples: [ 4, 3, 2, 1, 0 ]
+                
+                //                              Done           Take the next highest sample, which is 1.
+                //                              v              v
+                // Suppose beam 2 is done. [ 4, 3, 2 ] -> [ 4, 1, 2 ]
+                
+                // So yeah, the new beamIndex starts from numBeams, and increments whenever a beam is done.
+                var newBeamIndex = numBeams;
+                
                 for (currentBeamIndex = 0; currentBeamIndex < numBeams; currentBeamIndex++)
                 {
                     ref var currentBeam = ref beams[currentBeamIndex];
                     
-                    // If any of the beams are NOT done yet, isDone will be false.
-                    isDone &= currentBeam.UpdateAndReturnDoneState(stoppingCriteria, currentStepIndex);
+                    var isCurrentBeamDone = currentBeam.IsDone(stoppingCriteria, currentStepIndex);
+                    
+                    if (isCurrentBeamDone)
+                    {
+                        // This copies data from beam to hypothesis memory, therefore freeing up beam memory
+                        hypothesisCollection.Add(currentBeam, currentStepIndex);
+                        
+                        var newSample = sampledResults[newBeamIndex++];
+
+                        // No side-effect. As mentioned above, the beam memory is freed up.
+                        // We also guarantee that only a single beam points to a single beam memory!
+                        // ( Samples can point to the same beam memory, but not beams )
+                        if (currentBeam.BackingMemoryEquals(newSample, beams))
+                        {
+                            currentBeam.AppendSampleResult(
+                                newSample,
+                                currentStepIndex: currentStepIndex);
+                        }
+
+                        else
+                        {
+                            currentBeam.OverwriteWithSampleResult(
+                                newSample,
+                                currentStepIndex: currentStepIndex,
+                                beams);
+                        }
+                    }
                 }
 
-                if (isDone)
+                if (hypothesisCollection.IsDone)
                 {
-                    // The first beam always contain the best result
-
-                    return initialBeam.GetCurrentStepSlice(currentStepIndex);
+                    return hypothesisCollection
+                        .GetBestHypothesis()
+                        .GetMemorySlice();
                 }
             }
         }

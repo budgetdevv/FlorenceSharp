@@ -115,7 +115,7 @@ namespace FlorenceSharp
 
         private readonly FlorenceLogitsProcessor LogitsProcessor;
 
-        private readonly BeamSearcher<ConfigT> BeamSearcher;
+        private BeamSearcher<ConfigT> BeamSearcher;
 
         private readonly FlorenceStopCriteria<ConfigT> StoppingCriteria;
 
@@ -276,7 +276,7 @@ namespace FlorenceSharp
             //
             // var response = Tokenizer.Decode(logits);
 
-            ref readonly var beamSearcher = ref BeamSearcher;
+            ref var beamSearcher = ref BeamSearcher;
 
             beamSearcher.Search(
                 encoderHiddenStates,

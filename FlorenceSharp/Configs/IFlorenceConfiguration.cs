@@ -22,5 +22,7 @@
         public static abstract uint TopK { get; }
         
         public static abstract bool EarlyStopping { get; }
+        
+        public static abstract float LengthPenalty { get; }
     }
 }
