@@ -220,10 +220,14 @@ namespace FlorenceSharp
             ManagedTensor<float> encoderHiddenStates,
             ManagedTensor<float> inputEmbeds)
         {
+            var inputEmbedsDimensions = inputEmbeds.OnnxDenseTensor.Dimensions.ToArray();
+            
+            inputEmbedsDimensions[^1] = 51289;
+            
             // https://imgur.com/a/florence2-decoder-iVRFiGv
             
             var outputLogitsTensor = new ManagedTensor<float>(
-                dimensions: (ReadOnlySpan<nint>) [ 1, 1, 51289 ],
+                dimensions: (ReadOnlySpan<int>) inputEmbedsDimensions,
                 initialize: true);
 
             DecoderOnnxSession.Run(
