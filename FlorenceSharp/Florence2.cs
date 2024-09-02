@@ -130,11 +130,11 @@ namespace FlorenceSharp
 
             ImagePreProcessor = new();
 
-            Tokenizer = new(onnxSessionOptions);
+            var tokenizer = Tokenizer = new(onnxSessionOptions);
 
             LogitsProcessor = new();
 
-            BeamSearcher = new();
+            BeamSearcher = new(in tokenizer);
 
             StoppingCriteria = new();
         }
@@ -204,7 +204,7 @@ namespace FlorenceSharp
             ManagedTensor<float> encoderHiddenStates,
             ManagedTensor<float> inputEmbeds)
         {
-            throw new NotImplementedException();
+            
         }
         
         private string GenerateCaptionCore(ReadOnlySpan<byte> imagePixels, FlorenceMode mode)
@@ -223,6 +223,7 @@ namespace FlorenceSharp
             // The expected input is batch_size, channels ( Hardcoded to 3 ), height, width
             imagePixelsTensor = (DenseTensor<float>) imagePixelsTensor.Reshape([ 1, ..imagePixelsTensor.Dimensions ]);
             
+            // https://imgur.com/a/kY4V5mb
             using var visionEncoderOutput = VisionEncoderOnnxSession.Run(
             [
                 NamedOnnxValue.CreateFromTensor(VisionEncoderInput.PIXEL_VALUES_NAME, imagePixelsTensor),
@@ -276,6 +277,9 @@ namespace FlorenceSharp
             //
             // var response = Tokenizer.Decode(logits);
 
+            // Console.WriteLine(encoderHiddenStates.ValuesArr.GetArrPrintString());
+            // Console.WriteLine(mergedAttentionMask.ValuesArr.GetArrPrintString());
+            
             ref var beamSearcher = ref BeamSearcher;
 
             beamSearcher.Search(

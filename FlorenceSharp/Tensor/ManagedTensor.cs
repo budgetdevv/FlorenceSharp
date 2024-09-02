@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -14,6 +15,9 @@ namespace FlorenceSharp.Tensor
         // public readonly OrtValue OnnxORTValue;
 
         public readonly DenseTensor<T> OnnxDenseTensor;
+
+        private static readonly FieldInfo SYSTEM_NUMERICS_TENSOR_VALUES_FIELD_INFO = typeof(SystemNumericsTensors.Tensor<T>)
+            .GetField("_values", BindingFlags.NonPublic | BindingFlags.Instance)!;
         
         public ManagedTensor(TensorDimensions dimensions, bool initialize, bool pinned = false)
             :this(initialize ? 
@@ -27,7 +31,11 @@ namespace FlorenceSharp.Tensor
         {
             SNTensor = snTensor;
 
+            #if NET9_0_OR_GREATER
             var arr = ValuesArr = GetValuesArray(snTensor);
+            #else
+            var arr = Unsafe.As<T[]>(SYSTEM_NUMERICS_TENSOR_VALUES_FIELD_INFO.GetValue(snTensor));
+            #endif
             
             // OnnxORTValue = OrtValue.CreateTensorValueFromMemory<T>(pinnedMemory, dimensions.WidenDimensions());
 
