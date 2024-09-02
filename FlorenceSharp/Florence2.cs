@@ -50,7 +50,7 @@ namespace FlorenceSharp
 
         private struct TokenEmbeddingsOutput
         {
-            public const string INPUT_EMBEDS_NAME = "input_embeds";
+            public const string INPUTS_EMBEDS_NAME = "inputs_embeds";
         }
     }
 
@@ -192,7 +192,7 @@ namespace FlorenceSharp
                 ],
                 outputs: 
                 [
-                    NamedOnnxValue.CreateFromTensor(TokenEmbeddingsOutput.INPUT_EMBEDS_NAME, inputEmbeds.OnnxDenseTensor),
+                    NamedOnnxValue.CreateFromTensor(TokenEmbeddingsOutput.INPUTS_EMBEDS_NAME, inputEmbeds.OnnxDenseTensor),
                 ]
             );
 
