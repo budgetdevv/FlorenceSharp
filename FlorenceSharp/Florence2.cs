@@ -27,7 +27,7 @@ namespace FlorenceSharp
             // https://imgur.com/a/wtqPvud
             
             public const string
-                INPUT_EMBEDS_NAME = "input_embeds",
+                INPUTS_EMBEDS_NAME = "inputs_embeds",
                 ATTENTION_MASK_NAME = "attention_mask";
         }
         
@@ -245,7 +245,7 @@ namespace FlorenceSharp
             // https://imgur.com/a/wtqPvud
             using var encoderOutput = EncoderOnnxSession.Run(
             [
-                mergedInputEmbeds.AsNamedOnnxValue(EncoderInput.INPUT_EMBEDS_NAME),
+                mergedInputEmbeds.AsNamedOnnxValue(EncoderInput.INPUTS_EMBEDS_NAME),
                 mergedAttentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME),
             ]);
             
