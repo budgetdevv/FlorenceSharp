@@ -40,7 +40,8 @@ namespace FlorenceSharp.DecodingStrategies
             // Used for sorting
             public int CompareTo(SampleResult other)
             {
-                return CumulativeTokenScore.CompareTo(other.CumulativeTokenScore);
+                // Negate for descending order
+                return -CumulativeTokenScore.CompareTo(other.CumulativeTokenScore);
             }
         }
 
@@ -59,6 +60,8 @@ namespace FlorenceSharp.DecodingStrategies
                 // Write as first element
                 MemoryMarshal.GetArrayDataReference(generatedTokenIDs) = endOfSequenceID;
                 
+                // Score is accumulated via addition
+                // https://chatgpt.com/share/6ab42166-0ae3-4c41-99b0-f9aec6c0a1d6
                 CumulativeScore = 0;
             }
 
@@ -251,6 +254,8 @@ namespace FlorenceSharp.DecodingStrategies
             {
                 beams[i] = new(endOfSequenceTokenID);
             }
+
+            Hypotheses = new();
         }
 
         private static void Sample(
@@ -293,9 +298,9 @@ namespace FlorenceSharp.DecodingStrategies
 
                 var logProb = Math.Log(logitsSoftmax[i]);
                 
-                sampledResults[currentBeamIndex + i] = new(
+                sampledResults[(currentBeamIndex * numBeams) + i] = new(
                     generatedTokenId: (int) tokenID,
-                    cumulativeTokenScore: beam.CumulativeScore * logProb,
+                    cumulativeTokenScore: beam.CumulativeScore + logProb,
                     parentBeamIndex: currentBeamIndex
                 );
             }
