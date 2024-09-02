@@ -1,12 +1,16 @@
 import os
 
-import onnx;
 from unittest.mock import patch
 from transformers import AutoModelForCausalLM, AutoProcessor, BartTokenizer
 from transformers.dynamic_module_utils import get_imports
 from onnxruntime_extensions import OrtPyFunction, gen_processing_models;
+
 import requests
 from PIL import Image;
+
+import onnx;
+from onnxscript import script, INT64, FLOAT;
+from onnxscript import opset18 as op;
 
 # BartTokenizer
 
@@ -119,9 +123,24 @@ def run_florence2():
 
     print(parsed_answer);
 
+def generate_top_k_onnx():
+    import onnx
+    from onnxscript import script, INT64, FLOAT
+    from onnxscript import opset18 as op
+
+    @script(op)
+    def model(logits: FLOAT[...], k: INT64):
+        # Ensure TopK produces both values and indices outputs
+        values, indices = op.TopK(X=logits, K=k);
+        return values, indices  # Return both outputs
+
+    # Save the model to an ONNX file
+    onnx.save(model.to_model_proto(), "topk.onnx");
+
 
 # Run any of the above functions
 
 # generate_tokenizer_models();
 # test_encoding();
-run_florence2();
+# run_florence2();
+generate_top_k_onnx();
