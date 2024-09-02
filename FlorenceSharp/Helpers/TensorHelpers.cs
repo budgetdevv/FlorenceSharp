@@ -45,14 +45,14 @@ namespace FlorenceSharp.Helpers
         {
             public readonly InferenceSession Model;
 
-            public readonly ManagedTensor<ulong> KInputBuffer;
+            public readonly ManagedTensor<long> KInputBuffer;
 
             public TopKSession()
             {
                 Model = new(
                     ResourceHelpers.GetResourceBytes(
                         typeof(TensorHelpers).Assembly, 
-                        "TopK.onnx")!);
+                        "topk.onnx")!);
 
                 KInputBuffer = new(
                     (ReadOnlySpan<nint>) [ 1 ], 
@@ -97,19 +97,29 @@ namespace FlorenceSharp.Helpers
             //
             // @script(op)
             // def model(logits: FLOAT[...], k: INT64):
-            // return op.TopK(logits, k);
+            // # Ensure TopK produces both values and indices outputs
+            // values, indices = op.TopK(X=logits, K=k);
+            // return values, indices;  # Return both outputs
             //
+            // # Save the model to an ONNX file
             // onnx.save(model.to_model_proto(), "/model.onnx");
+
             
             // https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK
             
-            var dimensions = (TensorDimensions) logitsInput.SNTensor.Lengths;
+            var dimensions = logitsInput.SNTensor.Lengths.ToArray();
+            
+            // The last dimension should be K.
+            
+            dimensions[^1] = unchecked((int) k);
+            
+            var tensorDimensions = (TensorDimensions) dimensions;
             
             // Create new output buffers
 
-            var logitsOutput = new ManagedTensor<float>(dimensions, initialize: false, pinned);
+            var logitsOutput = new ManagedTensor<float>(tensorDimensions, initialize: false, pinned);
             
-            var indicesOutput = new ManagedTensor<long>(dimensions, initialize: false, pinned);
+            var indicesOutput = new ManagedTensor<long>(tensorDimensions, initialize: false, pinned);
 
             var topK = TopKSessionSessionCurrentThread;
             
@@ -118,28 +128,18 @@ namespace FlorenceSharp.Helpers
             var kInputBuffer = topK.KInputBuffer;
 
             // Probably the fastest way to store its value
-            MemoryMarshal.GetArrayDataReference(kInputBuffer.ValuesArr) = k;
+            MemoryMarshal.GetArrayDataReference(kInputBuffer.ValuesArr) = unchecked((long) k);
 
             topKModel.Run(
                 inputs: 
                 [
-                    NamedOnnxValue.CreateFromTensor<float>(
-                        "logits", 
-                        logitsInput),
-                    
-                    NamedOnnxValue.CreateFromTensor<ulong>(
-                        "k",
-                        kInputBuffer),
+                    logitsInput.AsNamedOnnxValue("logits"),
+                    kInputBuffer.AsNamedOnnxValue("k"),
                 ], 
                 outputs:
                 [ 
-                    NamedOnnxValue.CreateFromTensor<float>(
-                        "values",
-                        logitsOutput),
-                    
-                    NamedOnnxValue.CreateFromTensor<long>(
-                        "indices",
-                        indicesOutput),
+                    logitsOutput.AsNamedOnnxValue("values"),
+                    indicesOutput.AsNamedOnnxValue("indices"),
                 ]
             );
             
