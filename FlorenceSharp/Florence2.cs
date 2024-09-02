@@ -96,7 +96,7 @@ namespace FlorenceSharp
             TokensEmbeddingOnnxSession;
 
         // https://huggingface.co/microsoft/Florence-2-large/blob/main/preprocessor_config.json
-        private struct CLIPImageProcessorConfig : ICLIPImagePreProcessorConfig
+        private struct CLIPImageProcessorConfig: ICLIPImagePreProcessorConfig
         {
             public static int ImageWidth => 768;
 
@@ -221,7 +221,7 @@ namespace FlorenceSharp
             var imagePixelsTensor = imagePreProcessed.NormalizedInputTensor;
             
             // The expected input is batch_size, channels ( Hardcoded to 3 ), height, width
-            imagePixelsTensor.Reshape([ 1, ..imagePixelsTensor.Dimensions ]);
+            imagePixelsTensor = (DenseTensor<float>) imagePixelsTensor.Reshape([ 1, ..imagePixelsTensor.Dimensions ]);
             
             using var visionEncoderOutput = VisionEncoderOnnxSession.Run(
             [
