@@ -89,21 +89,7 @@ namespace FlorenceSharp.Helpers
         {
             // https://josephrocca.github.io/onnxscript-editor/demo/
             
-            // import onnx
-            // from onnx import TensorProto
-            // from onnx.helper import make_tensor
-            //     from onnxscript import script, INT64, FLOAT
-            // from onnxscript import opset18 as op
-            //
-            // @script(op)
-            // def model(logits: FLOAT[...], k: INT64):
-            // # Ensure TopK produces both values and indices outputs
-            // values, indices = op.TopK(X=logits, K=k);
-            // return values, indices;  # Return both outputs
-            //
-            // # Save the model to an ONNX file
-            // onnx.save(model.to_model_proto(), "/model.onnx");
-
+            // Code for generating TopK ONNX model: https://github.com/budgetdevv/FlorenceSharp/blob/e2860af0f173775a14e81e3b4b3dfde403d32f20/OnnxExtensions/main.py#L126
             
             // https://github.com/onnx/onnx/blob/main/docs/Operators.md#TopK
             
