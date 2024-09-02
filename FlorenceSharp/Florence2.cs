@@ -35,7 +35,11 @@ namespace FlorenceSharp
         {
             // https://imgur.com/a/iVRFiGv
             
-            public const string ENCODER_HIDDEN_STATES_NAME = "encoder_hidden_states";
+            public const string 
+                ENCODER_ATTENTION_MASK_NAME = "encoder_attention_mask",
+                ENCODER_HIDDEN_STATES_NAME = "encoder_hidden_states",
+                INPUTS_EMBEDS_NAME = "inputs_embeds",
+                USE_CACHE_BRANCH_NAME = "use_cache_branch";
         }
         
         private struct VisionEncoderInput
@@ -119,6 +123,10 @@ namespace FlorenceSharp
 
         private readonly FlorenceStopCriteria<ConfigT> StoppingCriteria;
 
+        private readonly ManagedTensor<bool> UseCacheBranchTensor;
+        
+        private readonly NamedOnnxValue UseCacheBranchOnnxValue;
+
         protected Florence2(SessionOptions? onnxSessionOptions = null)
         {
             OnnxSessionOptions = onnxSessionOptions ??= new();
@@ -137,6 +145,14 @@ namespace FlorenceSharp
             BeamSearcher = new(in tokenizer);
 
             StoppingCriteria = new();
+            
+            var useCacheBranchTensor = UseCacheBranchTensor = new(
+                dimensions: (ReadOnlySpan<nint>) [ 1 ],
+                initialize: false);
+            
+            useCacheBranchTensor.ValuesArr[0] = ConfigT.UseCacheBranch;
+
+            UseCacheBranchOnnxValue = useCacheBranchTensor.AsNamedOnnxValue(DecoderInput.USE_CACHE_BRANCH_NAME);
         }
 
         public static async ValueTask<Florence2<ConfigT>> InitializeAsync(SessionOptions? onnxSessionOptions)
@@ -204,7 +220,26 @@ namespace FlorenceSharp
             ManagedTensor<float> encoderHiddenStates,
             ManagedTensor<float> inputEmbeds)
         {
+            // https://imgur.com/a/florence2-decoder-iVRFiGv
             
+            var outputLogitsTensor = new ManagedTensor<float>(
+                dimensions: (ReadOnlySpan<nint>) [ 1, 1, 51289 ],
+                initialize: true);
+
+            DecoderOnnxSession.Run(
+            inputs:
+            [
+                encoderAttentionMask.AsNamedOnnxValue(DecoderInput.ENCODER_ATTENTION_MASK_NAME),
+                encoderHiddenStates.AsNamedOnnxValue(DecoderInput.ENCODER_HIDDEN_STATES_NAME),
+                inputEmbeds.AsNamedOnnxValue(DecoderInput.INPUTS_EMBEDS_NAME),
+                UseCacheBranchOnnxValue,
+            ],
+            outputs:
+            [
+                outputLogitsTensor.AsNamedOnnxValue("logits"),
+            ]);
+
+            return outputLogitsTensor;
         }
         
         private string GenerateCaptionCore(ReadOnlySpan<byte> imagePixels, FlorenceMode mode)

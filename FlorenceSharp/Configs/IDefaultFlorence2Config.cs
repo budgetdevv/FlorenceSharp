@@ -33,5 +33,7 @@ namespace FlorenceSharp.Configs
         static bool IFlorenceGenerationConfiguration.EarlyStopping => true;
         
         static float IFlorenceGenerationConfiguration.LengthPenalty => 1.0f;
+        
+        static bool IFlorenceGenerationConfiguration.UseCacheBranch => false;
     }
 }
