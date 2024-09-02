@@ -34,7 +34,7 @@ namespace FlorenceSharp.Tensor
             #if NET9_0_OR_GREATER
             var arr = ValuesArr = GetValuesArray(snTensor);
             #else
-            var arr = Unsafe.As<T[]>(SYSTEM_NUMERICS_TENSOR_VALUES_FIELD_INFO.GetValue(snTensor));
+            var arr = ValuesArr = Unsafe.As<T[]>(SYSTEM_NUMERICS_TENSOR_VALUES_FIELD_INFO.GetValue(snTensor))!;
             #endif
             
             // OnnxORTValue = OrtValue.CreateTensorValueFromMemory<T>(pinnedMemory, dimensions.WidenDimensions());
