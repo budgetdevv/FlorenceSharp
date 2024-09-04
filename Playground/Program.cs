@@ -1,71 +1,75 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
+using System.Net.Http;
+using System.Threading.Tasks;
+using FlorenceSharp;
 using FlorenceSharp.Helpers;
-using FlorenceSharp.Tensor;
 using FlorenceSharp.Tokenizers;
-using Microsoft.ML.OnnxRuntime;
-using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace Playground
 {
     internal static class Program
     {
         [Experimental("SYSLIB5001")]
-        private static void Main(string[] args)
+        private static async Task Main(string[] args)
+        {
+            // TokenizerTest();
+
+            await ImageCaptioningTest();
+        }
+
+        private static void TokenizerTest()
         {
             var tokenizer = new FlorenceBartTokenizer(new());
-            
+
             while (true)
             {
-                LoopBody(tokenizer);
+                Console.Write("Input text to tokenize:");
+            
+                var sentences = Console.ReadLine()!.Split('|');
+            
+                var output = tokenizer.Tokenize(sentences);
+
+                var inputIDs = output.InputIDs.ToArray();
+            
+                var text =
+                    $"""
+                     Input IDs: {inputIDs.GetArrPrintString()}
+
+
+                     Attention Mask: {output.AttentionMask.ToArray().GetArrPrintString()}
+
+                     Decoded Text: {tokenizer.Decode(inputIDs)}
+                     """;
+            
+                Console.WriteLine(text);
             }
         }
 
-        private static void LoopBody(FlorenceBartTokenizer tokenizer)
+        private static async Task ImageCaptioningTest()
         {
-            Console.Write("Input text to tokenize:");
+            var imageBytes = await DownloadImageFromURL("https://i.imgur.com/drGJSNH.jpeg");
             
-            var sentences = Console.ReadLine()!.Split('|');
-            
-            var output = tokenizer.Tokenize(sentences);
+            var florence2 = new Florence2();
 
-            var inputIDs = output.InputIDs.ToArray();
-            
-            var text =
-            $"""
-            Input IDs: {inputIDs.GetLongArrPrintString()}
-            
-            Attention Mask: {output.AttentionMask.ToArray().GetLongArrPrintString()}
-            
-            Decoded Text: {tokenizer.Decode(inputIDs)}
-            """;
-            
-            Console.WriteLine(text);
+            Console.WriteLine(florence2.GenerateDetailedCaption(imageBytes));
         }
-
-        private static string GetLongArrPrintString(this long[] arr)
+        
+        private static async Task<byte[]?> DownloadImageFromURL(string url)
         {
-            // It has to include commas and the array brackets as well...
-            var stringBuilder = new StringBuilder(arr.Length * 2);
-
-            stringBuilder.Append('[');
-            
-            const string SEPARATOR = ", ";
-            
-            foreach (var item in arr)
+            try
             {
-                stringBuilder.Append(item);
-                stringBuilder.Append(SEPARATOR);
+                using var client = new HttpClient();
+                
+                return await client.GetByteArrayAsync(url);
             }
             
-            var separatorLength = SEPARATOR.Length;
-            stringBuilder.Remove(stringBuilder.Length - separatorLength, separatorLength);
-            
-            stringBuilder.Append(']');
-            
-            return stringBuilder.ToString();
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error downloading image: {ex.Message}");
+                return null;
+            }
         }
     }
 }

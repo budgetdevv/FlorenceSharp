@@ -108,9 +108,9 @@ namespace FlorenceSharp
 
             public static int ImageSequenceLength => 577;
 
-            public static float[] ImageMean => [0.485f, 0.456f, 0.406f];
+            public static float[] ImageMean => [ 0.485f, 0.456f, 0.406f ];
 
-            public static float[] ImageStd => [0.229f, 0.224f, 0.225f];
+            public static float[] ImageStd => [ 0.229f, 0.224f, 0.225f ];
         }
 
         private readonly CLIPImagePreProcessor<CLIPImageProcessorConfig> ImagePreProcessor;
@@ -119,8 +119,12 @@ namespace FlorenceSharp
 
         private readonly FlorenceLogitsProcessor LogitsProcessor;
 
-        private BeamSearcher<ConfigT> BeamSearcher;
+        private const string EOS_TOKEN = FlorenceSpecialTokens.END_OF_SEQUENCE;
 
+        private readonly long EndOfSequenceTokenID;
+        
+        private BeamSearcher<ConfigT> BeamSearcher;
+        
         private readonly FlorenceStopCriteria<ConfigT> StoppingCriteria;
 
         private readonly ManagedTensor<bool> UseCacheBranchTensor;
@@ -142,9 +146,11 @@ namespace FlorenceSharp
 
             LogitsProcessor = new();
 
-            BeamSearcher = new(in tokenizer);
+            var endOfSequenceTokenID = EndOfSequenceTokenID = tokenizer.GetTokenID(EOS_TOKEN);
+            
+            BeamSearcher = new(endOfSequenceTokenID);
 
-            StoppingCriteria = new();
+            StoppingCriteria = new(endOfSequenceTokenID);
             
             var useCacheBranchTensor = UseCacheBranchTensor = new(
                 dimensions: (ReadOnlySpan<nint>) [ 1 ],
@@ -224,7 +230,7 @@ namespace FlorenceSharp
             
             inputEmbedsDimensions[^1] = 51289;
             
-            // https://imgur.com/a/florence2-decoder-iVRFiGv
+            // https://imgur.com/a/tI0RFxq
             
             var outputLogitsTensor = new ManagedTensor<float>(
                 dimensions: (ReadOnlySpan<int>) inputEmbedsDimensions,
@@ -242,6 +248,8 @@ namespace FlorenceSharp
             [
                 outputLogitsTensor.AsNamedOnnxValue("logits"),
             ]);
+
+            // Console.WriteLine(outputLogitsTensor.OnnxDenseTensor.Dimensions.GetSpanPrintString());
 
             return outputLogitsTensor;
         }
@@ -276,9 +284,8 @@ namespace FlorenceSharp
             var attentionMask = ManagedTensor<long>
                 .CopyFromDenseTensor(tokenized.AttentionMask);
             
-            var (mergedInputEmbeds, mergedAttentionMask) = 
-                MergeTokenEmbeddingsAndImageFeatures(
-                tokenEmbeddings,
+            var (mergedInputEmbeds, mergedAttentionMask) = MergeTokenEmbeddingsAndImageFeatures(
+                tokenEmbeddings, 
                 imageFeatures,
                 attentionMask);
             
@@ -299,36 +306,19 @@ namespace FlorenceSharp
             ManagedTensor<float> encoderHiddenStates,
             ManagedTensor<long> mergedAttentionMask)
         {
-            // // https://imgur.com/a/iVRFiGv
-            // using var decoderOutput = DecoderOnnxSession.Run(
-            // [
-            //     encoderInputEmbedsOnnxValue,
-            //     encoderAttentionMaskOnnxValue,
-            //     NamedOnnxValue.CreateFromTensor(DecoderInput.ENCODER_HIDDEN_STATES_NAME, encoderHiddenStates),
-            // ]);
-            //
-            // var logits = (DenseTensor<float>) decoderOutput[0].Value;
-            
-            // LogitsProcessor.ProcessLogits(logits);
-            //
-            // // Sample logits
-            // // ...
-            //
-            // var response = Tokenizer.Decode(logits);
-
-            // Console.WriteLine(encoderHiddenStates.ValuesArr.GetArrPrintString());
-            // Console.WriteLine(mergedAttentionMask.ValuesArr.GetArrPrintString());
-            
             ref var beamSearcher = ref BeamSearcher;
+            
+            ref readonly var tokenizer = ref Tokenizer;
 
-            beamSearcher.Search(
+            var searchResult = beamSearcher.Search(
                 encoderHiddenStates,
                 mergedAttentionMask,
                 this,
-                in Tokenizer,
+                in tokenizer,
                 in StoppingCriteria);
-            
-            throw new NotImplementedException();
+
+            // TODO: Implement post-processing
+            return tokenizer.Decode(searchResult);
         }
         
         private static (ManagedTensor<float> mergedInputEmbeds, ManagedTensor<long> mergedAttentionMask) MergeTokenEmbeddingsAndImageFeatures(
@@ -336,33 +326,18 @@ namespace FlorenceSharp
             ManagedTensor<float> imageFeatures,
             ManagedTensor<long> textAttentionMask)
         {
-            // var mergedInputEmbeds = TensorHelpers.ConcatenateOnDimension<float>(
-            //     axis: 1, 
-            //     tokenEmbeddings, 
-            //     imageFeatures);
-            //
-            // var imageAttentionMask = TensorHelpers.CreateAndFillTensor(
-            //     fill: 1L, 
-            //     dimensions: imageFeatures.Dimensions[..2]);
-            //
-            // var mergedAttentionMask = TensorHelpers.ConcatenateOnDimension<long>(
-            //     axis: 1, 
-            //     textAttentionMask,
-            //     imageAttentionMask);
-            
             var mergedInputEmbeds = SystemNumericsTensor.ConcatenateOnDimension<float>(
                 dimension: 1, 
-                [tokenEmbeddings, 
-                imageFeatures]);
-            
+                [ imageFeatures, tokenEmbeddings ]);
+
+            // Image attention mask is just all ones.
             var imageAttentionMask = TensorHelpers.CreateAndFillTensor(
-                fill: 1L, 
-                dimensions: imageFeatures.OnnxDenseTensor.Dimensions[..2]);
+                fill: 1L,
+                dimensions: imageFeatures.OnnxDenseTensor.Dimensions.Slice(0, 2));
             
             var mergedAttentionMask = SystemNumericsTensor.ConcatenateOnDimension<long>(
                 dimension: 1, 
-                [textAttentionMask,
-                imageAttentionMask]);
+                [ imageAttentionMask, textAttentionMask ]);
             
             return (mergedInputEmbeds, mergedAttentionMask);
         }
