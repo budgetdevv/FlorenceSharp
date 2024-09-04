@@ -33,7 +33,11 @@ namespace FlorenceSharp.Processors.Imaging
 
             var originalImageDimensions = new ImageDimensions(image.Width, image.Height);
             
-            image.Mutate(x => x.Resize(imageWidth, imageHeight));
+            image.Mutate(x => x.Resize(
+                imageWidth, 
+                imageHeight,
+                ConfigT.Resampler, 
+                compand: false));
             
             image.ProcessPixelRows(pixelAccessor =>
             {
@@ -47,6 +51,8 @@ namespace FlorenceSharp.Processors.Imaging
                 var imageStd1 = imageStd[1];
                 var imageStd2 = imageStd[2];
                 
+                var rescaleFactor = ConfigT.RescaleFactor;
+                
                 for (var y = 0; y < imageHeight; y++)
                 {
                     var rowSpan = pixelAccessor.GetRowSpan(y);
@@ -55,9 +61,9 @@ namespace FlorenceSharp.Processors.Imaging
                     {
                         var pixel = rowSpan[x];
                     
-                        tensor[0, y, x] = (pixel.R - imageMean0) / imageStd0;
-                        tensor[1, y, x] = (pixel.G - imageMean1) / imageStd1;
-                        tensor[2, y, x] = (pixel.B - imageMean2) / imageStd2;
+                        tensor[0, y, x] = ((pixel.R * rescaleFactor) - imageMean0) / imageStd0;
+                        tensor[1, y, x] = ((pixel.G * rescaleFactor) - imageMean1) / imageStd1;
+                        tensor[2, y, x] = ((pixel.B * rescaleFactor) - imageMean2) / imageStd2;
                     }
                 }
             });
