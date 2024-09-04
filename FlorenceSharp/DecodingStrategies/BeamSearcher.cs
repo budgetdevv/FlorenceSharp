@@ -51,7 +51,7 @@ namespace FlorenceSharp.DecodingStrategies
             
             public double CumulativeScore { get; private set; }
 
-            public Beam(int endOfSequenceID)
+            public Beam(long endOfSequenceID)
             {
                 var generatedTokenIDs = GeneratedTokenIDs = GC.AllocateUninitializedArray<long>(
                     length: (int) ConfigT.MaxLength,
@@ -160,9 +160,14 @@ namespace FlorenceSharp.DecodingStrategies
             
             public HypothesisCollection()
             {
-                Hypotheses = GC.AllocateUninitializedArray<Hypothesis>(
+                var hypotheses = Hypotheses = GC.AllocateUninitializedArray<Hypothesis>(
                     length: (int) ConfigT.NumBeams,
                     pinned: true);
+                
+                for (int i = 0; i < hypotheses.Length; i++)
+                {
+                    hypotheses[i] = new();
+                }
                 
                 Count = 0;
             }
@@ -174,7 +179,7 @@ namespace FlorenceSharp.DecodingStrategies
                 var writeIndex = Count++;
                 
                 Debug.Assert(Count <= ConfigT.NumBeams);
-
+                
                 ref var currentHypothesis = ref Hypotheses[writeIndex];
                 
                 currentHypothesis.Apply(beam, currentStepIndex);
@@ -219,11 +224,7 @@ namespace FlorenceSharp.DecodingStrategies
 
         private HypothesisCollection Hypotheses;
         
-        private const string EOS_TOKEN = FlorenceSpecialTokens.END_OF_SEQUENCE;
-
-        private readonly long EndOfSequenceTokenID;
-        
-        public BeamSearcher(in FlorenceBartTokenizer tokenizer)
+        public BeamSearcher(long endOfSequenceTokenID)
         {
             var numBeams = (int) NumBeams;
             
@@ -245,11 +246,6 @@ namespace FlorenceSharp.DecodingStrategies
             
             SampleResultsWithDuplicateBeamIndex = new(numBeams);
             
-            EndOfSequenceTokenID = tokenizer.GetTokenID(EOS_TOKEN);
-            
-            // Initialize beams. We only have to do this once.
-            var endOfSequenceTokenID = (int) EndOfSequenceTokenID;
-            
             for (int i = 0; i < beams.Length; i++)
             {
                 beams[i] = new(endOfSequenceTokenID);
@@ -268,20 +264,43 @@ namespace FlorenceSharp.DecodingStrategies
             ManagedTensor<float> encoderHiddenStates,
             in Florence2<ConfigT> florence2)
         {
-            // Get embeddings for the generated tokens
+            Memory<long> inputIDs;
 
-            var inputIDs = beam.GetCurrentStepSlice(currentStepIndex);
+            ManagedTensor<float> inputEmbeds, logits;
 
-            // TODO: Embed with multiple batches
-            var inputEmbeds = florence2.GenerateEmbeddingsForInputIDs(inputIDs, batchSize: 1);
+            if (ConfigT.UseCacheBranch)
+            {
+                throw new NotImplementedException();
+            }
             
-            // Decode into logits
+            else
+            {
+                // Since we are not using cache branch, we need to embed all the generated tokens again
+                // and pass the embeddings into the decoder.
+                inputIDs = beam.GetCurrentStepSlice(currentStepIndex);
 
-            var logits = florence2.DecodeIntoLogits(
-                encoderAttentionMask,
-                encoderHiddenStates,
-                inputEmbeds);
+                // Get embeddings for the generated tokens
+                // Output dimensions will be [ batch_size, sequence_length, 1024 ],
+                // where sequence length is inputIDs.Length.
+                inputEmbeds = florence2.GenerateEmbeddingsForInputIDs(inputIDs, batchSize: 1);
             
+                // Decode into logits
+
+                logits = florence2.DecodeIntoLogits(
+                    encoderAttentionMask,
+                    encoderHiddenStates,
+                    inputEmbeds);
+
+                // Since we have to embed all the generated tokens again, we end up with logits for
+                // all the generated tokens. However, we are only interested in the most recently generated token.
+                
+                // Suppose currentStepIndex is 1, we want the logits for the token at index 0
+                // ( Tensor indexers are still 0-based, so we need to subtract 1 from currentStepIndex )
+                // (currentStepIndex - 1)..currentStepIndex represents a range from
+                // (currentStepIndex - 1) to currentStepIndex  ( Exclusive ), which means effectively just ( currentStepIndex - 1 ).
+                logits = logits.SNTensor.Slice([ new NRange(..), new((currentStepIndex - 1)..currentStepIndex), new(..) ]);
+            }
+                        
             // Get the TopK results
             
             var topKResult = logits.TopK(ConfigT.TopK);
@@ -314,8 +333,6 @@ namespace FlorenceSharp.DecodingStrategies
             in FlorenceStopCriteria<ConfigT> stoppingCriteria)
             // out int outputTokens)
         {
-            var eosTokenID = EndOfSequenceTokenID;
-
             var beams = Beams;
             
             var numBeams = beams.Length;
@@ -363,7 +380,9 @@ namespace FlorenceSharp.DecodingStrategies
             // Clear Hypotheses
             hypothesisCollection.Clear();
             
-            for (int currentStepIndex = INITIAL_STEP_INDEX + 1; true; currentStepIndex++)
+            for (int currentStepIndex = INITIAL_STEP_INDEX + 1; 
+                 true; // This helps me understand better, even though it can be optimized away
+                 currentStepIndex++)
             {
                 // Now the fun begins
                 
@@ -407,7 +426,7 @@ namespace FlorenceSharp.DecodingStrategies
                     {
                         ref var parentBeam = ref beams[parentBeamIndex];
                         
-                        parentBeam.AppendSampleResult(result, currentStepIndex: INITIAL_STEP_INDEX);
+                        parentBeam.AppendSampleResult(result, currentStepIndex);
                     }
                     
                     // Otherwise, we add it to sampleResultsWithDuplicateBeamIndex
@@ -423,13 +442,13 @@ namespace FlorenceSharp.DecodingStrategies
                 // So in theory, sampleResultsWithDuplicateBeamIndex.Count should be equal to outstandingBeamIndices.Count.
                 Debug.Assert(sampleResultsWithDuplicateBeamIndex.Count == outstandingBeamIndices.Count);
 
-                var sampleResultIndex = 0;
+                var sampleResultWithDuplicateBeamIndex = 0;
                 
                 foreach (var beamIndex in outstandingBeamIndices)
                 {
                     ref var currentBeam = ref beams[beamIndex];
 
-                    var sampleResult = sampleResultsWithDuplicateBeamIndex[sampleResultIndex];
+                    var sampleResult = sampleResultsWithDuplicateBeamIndex[sampleResultWithDuplicateBeamIndex++];
                     
                     currentBeam.OverwriteWithSampleResult(
                         sampleResult,
@@ -461,6 +480,9 @@ namespace FlorenceSharp.DecodingStrategies
                         // This copies data from beam to hypothesis memory, therefore freeing up beam memory
                         hypothesisCollection.Add(currentBeam, currentStepIndex);
                         
+                        // We still want to sample numBeams number of samples. Since the current beam is done,
+                        // we will take the next best sample.
+                        
                         var newSample = sampledResults[newBeamIndex++];
 
                         // No side-effect. As mentioned above, the beam memory is freed up.
@@ -480,14 +502,14 @@ namespace FlorenceSharp.DecodingStrategies
                                 currentStepIndex: currentStepIndex,
                                 beams);
                         }
+                        
+                        if (hypothesisCollection.IsDone)
+                        {
+                            return hypothesisCollection
+                                .GetBestHypothesis()
+                                .GetMemorySlice();
+                        }
                     }
-                }
-
-                if (hypothesisCollection.IsDone)
-                {
-                    return hypothesisCollection
-                        .GetBestHypothesis()
-                        .GetMemorySlice();
                 }
             }
         }
