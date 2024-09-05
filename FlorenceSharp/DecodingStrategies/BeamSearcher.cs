@@ -57,6 +57,9 @@ namespace FlorenceSharp.DecodingStrategies
                     length: (int) ConfigT.MaxLength,
                     pinned: true);
                 
+                // Mainly for debugging purposes
+                generatedTokenIDs.AsSpan().Fill(-1);
+                
                 // Write as first element
                 MemoryMarshal.GetArrayDataReference(generatedTokenIDs) = endOfSequenceID;
                 
