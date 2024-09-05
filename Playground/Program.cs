@@ -34,14 +34,13 @@ namespace Playground
                 var inputIDs = output.InputIDs.ToArray();
             
                 var text =
-                    $"""
-                     Input IDs: {inputIDs.GetArrPrintString()}
+                $"""
+                Input IDs: {inputIDs.GetArrPrintString()}
 
+                Attention Mask: {output.AttentionMask.ToArray().GetArrPrintString()}
 
-                     Attention Mask: {output.AttentionMask.ToArray().GetArrPrintString()}
-
-                     Decoded Text: {tokenizer.Decode(inputIDs)}
-                     """;
+                Decoded Text: {tokenizer.Decode(inputIDs)}
+                """;
             
                 Console.WriteLine(text);
             }
@@ -53,7 +52,7 @@ namespace Playground
             
             var florence2 = new Florence2();
 
-            Console.WriteLine(florence2.GenerateDetailedCaption(imageBytes));
+            Console.WriteLine(florence2.GenerateCaption(imageBytes));
         }
         
         private static async Task<byte[]?> DownloadImageFromURL(string url)
