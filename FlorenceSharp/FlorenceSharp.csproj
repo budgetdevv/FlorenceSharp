@@ -14,7 +14,6 @@
 
     <ItemGroup>
         <EmbeddedResource Include="Resources\Embedded\*.*" Visible="true" />
-        <EmbeddedResource Remove="Debug\**" />
     </ItemGroup>
 
     <!--    This is required for some reason ( For MacOS at least ).
