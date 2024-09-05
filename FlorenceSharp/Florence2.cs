@@ -135,10 +135,10 @@ namespace FlorenceSharp
         {
             OnnxSessionOptions = onnxSessionOptions ??= new();
 
-            EncoderOnnxSession = new(ConfigT.EncoderModelPath, OnnxSessionOptions);
-            DecoderOnnxSession = new(ConfigT.DecoderModelPath, OnnxSessionOptions);
-            VisionEncoderOnnxSession = new(ConfigT.VisionEncoderModelPath, OnnxSessionOptions);
-            TokensEmbeddingOnnxSession = new(ConfigT.TokensEmbeddingModelPath, OnnxSessionOptions);
+            EncoderOnnxSession = new(ConfigT.EncoderModelPath, onnxSessionOptions);
+            DecoderOnnxSession = new(ConfigT.DecoderModelPath, onnxSessionOptions);
+            VisionEncoderOnnxSession = new(ConfigT.VisionEncoderModelPath, onnxSessionOptions);
+            TokensEmbeddingOnnxSession = new(ConfigT.TokensEmbeddingModelPath, onnxSessionOptions);
 
             ImagePreProcessor = new();
 
