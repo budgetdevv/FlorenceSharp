@@ -126,8 +126,6 @@ namespace FlorenceSharp
         private BeamSearcher<ConfigT> BeamSearcher;
         
         private readonly FlorenceStopCriteria<ConfigT> StoppingCriteria;
-
-        private readonly ManagedTensor<bool> UseCacheBranchTensor;
         
         private readonly NamedOnnxValue UseCacheBranchOnnxValue;
 
@@ -152,7 +150,7 @@ namespace FlorenceSharp
 
             StoppingCriteria = new(endOfSequenceTokenID);
             
-            var useCacheBranchTensor = UseCacheBranchTensor = new(
+            var useCacheBranchTensor = new ManagedTensor<bool>(
                 dimensions: (ReadOnlySpan<nint>) [ 1 ],
                 initialize: false);
             
