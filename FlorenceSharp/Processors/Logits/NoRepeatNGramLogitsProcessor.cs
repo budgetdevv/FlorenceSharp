@@ -76,6 +76,10 @@ namespace FlorenceSharp.Processors.Logits
         
         public void ProcessLogits(Memory<float> logits, Memory<long> inputIDs)
         {
+            // https://huggingface.co/docs/transformers/v4.15.0/en/internal/generation_utils#transformers.NoRepeatNGramLogitsProcessor
+            // https://github.com/huggingface/transformers/blob/v4.15.0/src/transformers/generation_logits_process.py#L279
+            // https://github.com/facebookresearch/fairseq/blob/a07cb6f40480928c9e0548b737aadd36ee66ac76/fairseq/sequence_generator.py#L345
+            
             // Generate n-grams from inputIDs
             
             var noRepeatNGramSize = unchecked((int) ConfigT.NoRepeatNGramSize);
