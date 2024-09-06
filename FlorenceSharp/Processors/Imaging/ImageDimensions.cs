@@ -1,4 +1,4 @@
-namespace FlorenceSharp
+namespace FlorenceSharp.Processors.Imaging
 {
     public struct ImageDimensions(int width, int height)
     {
