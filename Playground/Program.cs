@@ -76,11 +76,21 @@ namespace Playground
         {
             var imageBytes = await DownloadImageFromURL("https://i.imgur.com/drGJSNH.jpeg");
             
-            // var florence2 = new Florence2<CUDAFlorenceConfig>();
-            
-            var florence2 = new Florence2();
+            const bool USE_CUDA = false;
 
-            Console.WriteLine(florence2.GenerateMoreDetailedCaption(imageBytes));
+            if (USE_CUDA)
+            {
+                var florence2 = new Florence2<CUDAFlorenceConfig>();
+
+                Console.WriteLine(florence2.GenerateMoreDetailedCaption(imageBytes));
+            }
+
+            else
+            {
+                var florence2 = new Florence2();
+
+                Console.WriteLine(florence2.GenerateMoreDetailedCaption(imageBytes));
+            }
         }
         
         private static async Task<byte[]?> DownloadImageFromURL(string url)
