@@ -61,9 +61,9 @@ namespace FlorenceSharp.Processors.Imaging
                     {
                         var pixel = rowSpan[x];
                     
-                        tensor[0, y, x] = ((pixel.R * rescaleFactor) - imageMean0) / imageStd0;
+                        var _1 = tensor[0, y, x] = ((pixel.B * rescaleFactor) - imageMean0) / imageStd0;
                         tensor[1, y, x] = ((pixel.G * rescaleFactor) - imageMean1) / imageStd1;
-                        tensor[2, y, x] = ((pixel.B * rescaleFactor) - imageMean2) / imageStd2;
+                        tensor[2, y, x] = ((pixel.R * rescaleFactor) - imageMean2) / imageStd2;
                     }
                 }
             });
