@@ -17,8 +17,7 @@ namespace FlorenceSharp
 {
     public struct DefaultFlorence2Config: IDefaultFlorence2Config;
 
-    public sealed class Florence2(SessionOptions? onnxSessionOptions = null):
-        Florence2<DefaultFlorence2Config>(onnxSessionOptions);
+    public sealed class Florence2(): Florence2<DefaultFlorence2Config>;
 
     public partial class Florence2<ConfigT>
     {
@@ -58,7 +57,7 @@ namespace FlorenceSharp
         }
     }
 
-    public partial class Florence2<ConfigT> : IAsyncInitializable<SessionOptions?, Florence2<ConfigT>>, IDisposable
+    public partial class Florence2<ConfigT> : IDisposable
         where ConfigT : struct, IFlorenceConfiguration
     {
         // https://huggingface.co/microsoft/Florence-2-large/blob/6bf179230dd8855083a51a5e11beb04aec1291fd/processing_florence2.py#L112
@@ -91,13 +90,11 @@ namespace FlorenceSharp
                 { FlorenceMode.RegionToOCR, $"What text is in the region {INPUT_PLACEHOLDER}?" },
             }.ToFrozenDictionary();
 
-        private readonly SessionOptions OnnxSessionOptions;
-
-        private readonly InferenceSession
-            EncoderOnnxSession,
-            DecoderOnnxSession,
-            VisionEncoderOnnxSession,
-            TokensEmbeddingOnnxSession;
+        private readonly ConfigurableOnnxModel
+            EncoderOnnxModel,
+            DecoderOnnxModel,
+            VisionEncoderOnnxModel,
+            TokensEmbeddingOnnxModel;
 
         // https://huggingface.co/microsoft/Florence-2-large/blob/main/preprocessor_config.json
         private struct CLIPImageProcessorConfig: ICLIPImagePreProcessorConfig
@@ -129,18 +126,16 @@ namespace FlorenceSharp
         
         private readonly NamedOnnxValue UseCacheBranchOnnxValue;
 
-        protected Florence2(SessionOptions? onnxSessionOptions = null)
+        public Florence2()
         {
-            OnnxSessionOptions = onnxSessionOptions ??= new();
-
-            EncoderOnnxSession = new(ConfigT.EncoderModelPath, onnxSessionOptions);
-            DecoderOnnxSession = new(ConfigT.DecoderModelPath, onnxSessionOptions);
-            VisionEncoderOnnxSession = new(ConfigT.VisionEncoderModelPath, onnxSessionOptions);
-            TokensEmbeddingOnnxSession = new(ConfigT.TokensEmbeddingModelPath, onnxSessionOptions);
+            EncoderOnnxModel = ConfigT.EncoderModelConfig.CreateModel();
+            DecoderOnnxModel = ConfigT.DecoderModelConfig.CreateModel();
+            VisionEncoderOnnxModel = ConfigT.VisionEncoderModelConfig.CreateModel();
+            TokensEmbeddingOnnxModel = ConfigT.TokensEmbeddingModelDeviceType.CreateModel();
 
             ImagePreProcessor = new();
 
-            var tokenizer = Tokenizer = new(onnxSessionOptions);
+            var tokenizer = Tokenizer = new(sessionOptions: new());
 
             LogitsProcessor = new(in tokenizer);
 
@@ -157,11 +152,6 @@ namespace FlorenceSharp
             useCacheBranchTensor.ValuesArr[0] = ConfigT.UseCacheBranch;
 
             UseCacheBranchOnnxValue = useCacheBranchTensor.AsNamedOnnxValue(DecoderInput.USE_CACHE_BRANCH_NAME);
-        }
-
-        public static async ValueTask<Florence2<ConfigT>> InitializeAsync(SessionOptions? onnxSessionOptions)
-        {
-            return new(onnxSessionOptions);
         }
 
         public string GenerateCaption(ReadOnlySpan<byte> imagePixels)
@@ -205,7 +195,7 @@ namespace FlorenceSharp
             // https://imgur.com/a/iyGFpRu
             // TODO: Does tokenized.InputIDs have the required dimensions?
             // Required Dimensions: [ batch_size, sequence_length ]
-            TokensEmbeddingOnnxSession.Run(
+            TokensEmbeddingOnnxModel.Session.Run(
                 inputs: 
                 [
                     inputIDs,
@@ -234,7 +224,7 @@ namespace FlorenceSharp
                 dimensions: (ReadOnlySpan<int>) inputEmbedsDimensions,
                 initialize: true);
 
-            DecoderOnnxSession.Run(
+            DecoderOnnxModel.Session.Run(
             inputs:
             [
                 encoderAttentionMask.AsNamedOnnxValue(DecoderInput.ENCODER_ATTENTION_MASK_NAME),
@@ -269,7 +259,7 @@ namespace FlorenceSharp
             imagePixelsTensor = (DenseTensor<float>) imagePixelsTensor.Reshape([ 1, ..imagePixelsTensor.Dimensions ]);
             
             // https://imgur.com/a/kY4V5mb
-            using var visionEncoderOutput = VisionEncoderOnnxSession.Run(
+            using var visionEncoderOutput = VisionEncoderOnnxModel.Session.Run(
             [
                 NamedOnnxValue.CreateFromTensor(VisionEncoderInput.PIXEL_VALUES_NAME, imagePixelsTensor),
             ]);
@@ -288,7 +278,7 @@ namespace FlorenceSharp
                 attentionMask);
             
             // https://imgur.com/a/wtqPvud
-            using var encoderOutput = EncoderOnnxSession.Run(
+            using var encoderOutput = EncoderOnnxModel.Session.Run(
             [
                 mergedInputEmbeds.AsNamedOnnxValue(EncoderInput.INPUTS_EMBEDS_NAME),
                 mergedAttentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME),
@@ -342,13 +332,10 @@ namespace FlorenceSharp
         
         public void Dispose()
         {
-            OnnxSessionOptions.Dispose();
-            
-            EncoderOnnxSession.Dispose();
-            DecoderOnnxSession.Dispose();
-            VisionEncoderOnnxSession.Dispose();
-            TokensEmbeddingOnnxSession.Dispose();
-            
+            EncoderOnnxModel.Dispose();
+            DecoderOnnxModel.Dispose();
+            VisionEncoderOnnxModel.Dispose();
+            TokensEmbeddingOnnxModel.Dispose();
             Tokenizer.Dispose();
         }
     }

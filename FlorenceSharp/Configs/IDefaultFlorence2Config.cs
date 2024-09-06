@@ -4,15 +4,41 @@ namespace FlorenceSharp.Configs
     {
         // https://huggingface.co/onnx-community/Florence-2-large/tree/main/onnx
 
-        private const string BASE_PATH = "FlorenceSharp/Models";
+        public const string 
+            BASE_MODEL_PATH = "FlorenceSharp/Models",
+            ENCODER_MODEL_PATH = $"{BASE_MODEL_PATH}/encoder_model.onnx",
+            DECODER_MODEL_PATH = $"{BASE_MODEL_PATH}/decoder_model.onnx",
+            VISION_ENCODER_MODEL_PATH = $"{BASE_MODEL_PATH}/vision_encoder.onnx",
+            TOKENS_EMBEDDING_MODEL_PATH = $"{BASE_MODEL_PATH}/embed_tokens.onnx";
+
+        private static readonly ConfigurableOnnxModel.Configuration
+            DEFAULT_ENCODER_MODEL_CONFIG,
+            DEFAULT_DECODER_MODEL_CONFIG,
+            DEFAULT_VISION_ENCODER_MODEL_CONFIG,
+            DEFAULT_TOKENS_EMBEDDING_MODEL_CONFIG;
+
+        static IDefaultFlorence2Config()
+        {
+            var baseConfig = new ConfigurableOnnxModel.Configuration();
+            
+            // The config is a struct, so subsequent calls to WithModelPath will not modify the original config.
+            DEFAULT_ENCODER_MODEL_CONFIG = baseConfig.WithModelPath(ENCODER_MODEL_PATH);
+            DEFAULT_DECODER_MODEL_CONFIG = baseConfig.WithModelPath(DECODER_MODEL_PATH);
+            DEFAULT_VISION_ENCODER_MODEL_CONFIG = baseConfig.WithModelPath(VISION_ENCODER_MODEL_PATH);
+            DEFAULT_TOKENS_EMBEDDING_MODEL_CONFIG = baseConfig.WithModelPath(TOKENS_EMBEDDING_MODEL_PATH);
+        }
         
-        static string IFlorenceConfiguration.EncoderModelPath => $"{BASE_PATH}/encoder_model.onnx";
+        static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.EncoderModelConfig
+            => DEFAULT_ENCODER_MODEL_CONFIG;
         
-        static string IFlorenceConfiguration.DecoderModelPath => $"{BASE_PATH}/decoder_model.onnx";
+        static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.DecoderModelConfig
+            => DEFAULT_DECODER_MODEL_CONFIG;
         
-        static string IFlorenceConfiguration.VisionEncoderModelPath => $"{BASE_PATH}/vision_encoder.onnx";
+        static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.VisionEncoderModelConfig
+            => DEFAULT_VISION_ENCODER_MODEL_CONFIG;
         
-        static string IFlorenceConfiguration.TokensEmbeddingModelPath => $"{BASE_PATH}/embed_tokens.onnx";
+        static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.TokensEmbeddingModelDeviceType
+            => DEFAULT_TOKENS_EMBEDDING_MODEL_CONFIG;
         
         // Generation
         

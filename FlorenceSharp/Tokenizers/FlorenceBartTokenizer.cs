@@ -129,6 +129,7 @@ namespace FlorenceSharp.Tokenizers
         {
             TokenizerEncodeSession.Dispose();
             TokenizerDecodeSession.Dispose();
+            SessionOptions.Dispose();
         }
     }
 }

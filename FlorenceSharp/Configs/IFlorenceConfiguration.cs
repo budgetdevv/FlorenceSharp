@@ -2,13 +2,13 @@
 {
     public interface IFlorenceConfiguration: IFlorenceGenerationConfiguration
     {
-        public static abstract string EncoderModelPath { get; }
+        public static abstract ConfigurableOnnxModel.Configuration EncoderModelConfig { get; }
         
-        public static abstract string DecoderModelPath { get; }
+        public static abstract ConfigurableOnnxModel.Configuration DecoderModelConfig { get; }
         
-        public static abstract string VisionEncoderModelPath { get; }
+        public static abstract ConfigurableOnnxModel.Configuration VisionEncoderModelConfig { get; }
         
-        public static abstract string TokensEmbeddingModelPath { get; }
+        public static abstract ConfigurableOnnxModel.Configuration TokensEmbeddingModelDeviceType { get; }
     }
 
     public interface IFlorenceGenerationConfiguration
