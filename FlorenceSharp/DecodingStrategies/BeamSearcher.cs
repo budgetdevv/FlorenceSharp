@@ -226,6 +226,11 @@ namespace FlorenceSharp.DecodingStrategies
         private readonly List<SampleResult> SampleResultsWithDuplicateBeamIndex;
 
         private HypothesisCollection Hypotheses;
+
+        public BeamSearcher()
+        {
+            throw new NotImplementedException();
+        }
         
         public BeamSearcher(long endOfSequenceTokenID)
         {
@@ -270,6 +275,8 @@ namespace FlorenceSharp.DecodingStrategies
             Memory<long> inputIDs;
 
             ManagedTensor<float> inputEmbeds, logits;
+            
+            inputIDs = beam.GetCurrentStepSlice(currentStepIndex);
 
             if (ConfigT.UseCacheBranch)
             {
@@ -280,7 +287,6 @@ namespace FlorenceSharp.DecodingStrategies
             {
                 // Since we are not using cache branch, we need to embed all the generated tokens again
                 // and pass the embeddings into the decoder.
-                inputIDs = beam.GetCurrentStepSlice(currentStepIndex);
 
                 // Get embeddings for the generated tokens
                 // Output dimensions will be [ batch_size, sequence_length, 1024 ],
@@ -303,6 +309,12 @@ namespace FlorenceSharp.DecodingStrategies
                 // (currentStepIndex - 1) to currentStepIndex  ( Exclusive ), which means effectively just ( currentStepIndex - 1 ).
                 logits = logits.SNTensor.Slice([ new NRange(..), new((currentStepIndex - 1)..currentStepIndex), new(..) ]);
             }
+            
+            // Process the logits
+            
+            ref readonly var logitsProcessor = ref florence2.LogitsProcessor;
+            
+            logitsProcessor.ProcessLogits(logits.ValuesArr.AsMemory(), inputIDs);
                         
             // Get the TopK results
             

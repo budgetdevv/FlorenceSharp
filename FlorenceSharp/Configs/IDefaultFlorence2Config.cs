@@ -20,7 +20,7 @@ namespace FlorenceSharp.Configs
         
         // GenerationConfig during python inference: https://imgur.com/a/m8tNdKs
         
-        static uint IFlorenceGenerationConfiguration.NoRepeatNgramSize => 3;
+        static uint IFlorenceGenerationConfiguration.NoRepeatNGramSize => 3;
         
         static uint IFlorenceGenerationConfiguration.NumBeams => 3;
         

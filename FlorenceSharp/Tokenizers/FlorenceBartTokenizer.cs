@@ -51,6 +51,11 @@ namespace FlorenceSharp.Tokenizers
             ENCODER_MODEL_PATH = "florence2_tokenizer_encode.onnx",
             DECODER_MODEL_PATH = "florence2_tokenizer_decode.onnx",
             VOCAB_PATH = "vocab.json";
+
+        public FlorenceBartTokenizer()
+        {
+            throw new NotImplementedException();
+        }
         
         public FlorenceBartTokenizer(SessionOptions sessionOptions)
         {

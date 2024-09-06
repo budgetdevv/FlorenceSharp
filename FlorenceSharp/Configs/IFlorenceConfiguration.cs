@@ -13,7 +13,7 @@
 
     public interface IFlorenceGenerationConfiguration
     {
-        public static abstract uint NoRepeatNgramSize { get; }
+        public static abstract uint NoRepeatNGramSize { get; }
         
         public static abstract uint NumBeams { get; }
         

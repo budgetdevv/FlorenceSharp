@@ -52,7 +52,7 @@ namespace Playground
             
             var florence2 = new Florence2();
 
-            Console.WriteLine(florence2.GenerateCaption(imageBytes));
+            Console.WriteLine(florence2.GenerateMoreDetailedCaption(imageBytes));
         }
         
         private static async Task<byte[]?> DownloadImageFromURL(string url)

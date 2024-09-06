@@ -117,7 +117,7 @@ namespace FlorenceSharp
 
         private readonly FlorenceBartTokenizer Tokenizer;
 
-        private readonly FlorenceLogitsProcessor LogitsProcessor;
+        internal readonly FlorenceLogitsProcessor<ConfigT> LogitsProcessor;
 
         private const string EOS_TOKEN = FlorenceSpecialTokens.END_OF_SEQUENCE;
 
@@ -142,7 +142,7 @@ namespace FlorenceSharp
 
             var tokenizer = Tokenizer = new(onnxSessionOptions);
 
-            LogitsProcessor = new();
+            LogitsProcessor = new(in tokenizer);
 
             var endOfSequenceTokenID = EndOfSequenceTokenID = tokenizer.GetTokenID(EOS_TOKEN);
             
