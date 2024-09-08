@@ -9,7 +9,7 @@ namespace FlorenceSharp.StoppingCriteria
      
         public EOSTokenStopCriterion()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
         
         public EOSTokenStopCriterion(long eosTokenID)

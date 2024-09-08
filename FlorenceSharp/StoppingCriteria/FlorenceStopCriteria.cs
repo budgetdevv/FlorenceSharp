@@ -12,7 +12,7 @@ namespace FlorenceSharp.StoppingCriteria
 
         public FlorenceStopCriteria()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public FlorenceStopCriteria(long endOfSequenceTokenId)

@@ -33,7 +33,7 @@ namespace Playground
                 var output = tokenizer.Tokenize(sentences);
 
                 var inputIDs = output.InputIDs.ToArray();
-            
+                
                 var text =
                 $"""
                 Input IDs: {inputIDs.GetArrPrintString()}

@@ -19,7 +19,7 @@ namespace FlorenceSharp.Processors.Logits
 
         public FlorenceLogitsProcessor()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
         
         public FlorenceLogitsProcessor(in FlorenceBartTokenizer tokenizer)

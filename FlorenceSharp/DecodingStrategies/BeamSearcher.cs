@@ -4,12 +4,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using FlorenceSharp.Caching;
 using FlorenceSharp.Collections;
 using FlorenceSharp.Configs;
 using FlorenceSharp.Helpers;
 using FlorenceSharp.StoppingCriteria;
 using FlorenceSharp.Tensor;
 using FlorenceSharp.Tokenizers;
+using Microsoft.ML.OnnxRuntime;
 
 namespace FlorenceSharp.DecodingStrategies
 {
@@ -51,6 +53,8 @@ namespace FlorenceSharp.DecodingStrategies
             
             public double CumulativeScore { get; private set; }
 
+            private readonly DecoderPastKeyValuesCollection<ConfigT> DecoderPastKeyValuesCollection;
+
             public Beam(long endOfSequenceID)
             {
                 var generatedTokenIDs = GeneratedTokenIDs = GC.AllocateUninitializedArray<long>(
@@ -66,12 +70,35 @@ namespace FlorenceSharp.DecodingStrategies
                 // Score is accumulated via addition
                 // https://chatgpt.com/share/6ab42166-0ae3-4c41-99b0-f9aec6c0a1d6
                 CumulativeScore = 0;
+                
+                DecoderPastKeyValuesCollection = new();
             }
-
+            
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public Memory<long> GetCurrentStepSlice(int currentStepIndex)
             {
                 return GeneratedTokenIDs.AsMemory(0, currentStepIndex);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Memory<long> GetLatestTokenSlice(int currentStepIndex)
+            {
+                Debug.Assert(ConfigT.UseCacheBranch);
+                
+                return GeneratedTokenIDs.AsMemory(currentStepIndex - 1, 1);
+            }
+
+            public void PopulateInputAndOutputWithPastKeyValues(
+                List<NamedOnnxValue> inputs,
+                List<NamedOnnxValue> outputs,
+                int currentStepIndex,
+                int encoderSequenceLength)
+            {
+                DecoderPastKeyValuesCollection.PopulateInputAndOutputWithPastKeyValues(
+                    inputs,
+                    outputs,
+                    currentStepIndex
+                );
             }
 
             public void AppendSampleResult(SampleResult result, int currentStepIndex)
@@ -229,7 +256,7 @@ namespace FlorenceSharp.DecodingStrategies
 
         public BeamSearcher()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
         
         public BeamSearcher(long endOfSequenceTokenID)
@@ -270,7 +297,7 @@ namespace FlorenceSharp.DecodingStrategies
             // Required inputs for decoder
             ManagedTensor<long> encoderAttentionMask,
             ManagedTensor<float> encoderHiddenStates,
-            in Florence2<ConfigT> florence2)
+            Florence2<ConfigT> florence2)
         {
             Memory<long> inputIDs;
 
@@ -343,7 +370,7 @@ namespace FlorenceSharp.DecodingStrategies
         public Memory<long> Search(
             ManagedTensor<float> encoderHiddenStates,
             ManagedTensor<long> encoderAttentionMask,
-            in Florence2<ConfigT> florence2,
+            Florence2<ConfigT> florence2,
             in FlorenceBartTokenizer tokenizer,
             in FlorenceStopCriteria<ConfigT> stoppingCriteria)
             // out int outputTokens)

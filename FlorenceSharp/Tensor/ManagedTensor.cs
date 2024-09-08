@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using FlorenceSharp.Helpers;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
@@ -11,8 +12,6 @@ namespace FlorenceSharp.Tensor
         public readonly T[] ValuesArr;
         
         public readonly SystemNumericsTensors.Tensor<T> SNTensor;
-        
-        // public readonly OrtValue OnnxORTValue;
 
         public readonly DenseTensor<T> OnnxDenseTensor;
 
@@ -50,6 +49,14 @@ namespace FlorenceSharp.Tensor
             static extern ref T[] GetValuesArray(SystemNumericsTensors.Tensor<T> tensor);
         }
 
+        public DenseTensor<T> GetReinterpretedDenseTensorUnsafely(scoped ReadOnlySpan<int> dimensions)
+        {
+            // Unfortunately DenseTensor<T>'s ctor does check for length.
+            var memory = ValuesArr.AsMemory(0, dimensions.GetDimensionSize());
+            
+            return new(memory, dimensions);
+        }
+        
         public static ManagedTensor<T> CopyFromDenseTensor(DenseTensor<T> tensor, bool pinned = false)
         {
             // Unfortunately it is impossible to wrap DenseTensor, since ManagedTensor support

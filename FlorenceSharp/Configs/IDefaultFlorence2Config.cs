@@ -46,6 +46,9 @@ namespace FlorenceSharp.Configs
         
         // GenerationConfig during python inference: https://imgur.com/a/m8tNdKs
         
+        // https://huggingface.co/microsoft/Florence-2-large/blob/main/config.json
+
+        
         static uint IFlorenceGenerationConfiguration.NoRepeatNGramSize => 3;
         
         static uint IFlorenceGenerationConfiguration.NumBeams => 3;
@@ -61,5 +64,13 @@ namespace FlorenceSharp.Configs
         static float IFlorenceGenerationConfiguration.LengthPenalty => 1.0f;
         
         static bool IFlorenceGenerationConfiguration.UseCacheBranch => false;
+        
+        static uint IFlorenceGenerationConfiguration.EncoderAttentionHeads => 12;
+        
+        static uint IFlorenceGenerationConfiguration.EncoderLayers => 6;
+        
+        static uint IFlorenceGenerationConfiguration.DecoderAttentionHeads => 12;
+        
+        static uint IFlorenceGenerationConfiguration.DecoderLayers => 6;
     }
 }

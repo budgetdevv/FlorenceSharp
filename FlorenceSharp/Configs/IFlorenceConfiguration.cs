@@ -26,5 +26,13 @@
         public static abstract float LengthPenalty { get; }
         
         public static abstract bool UseCacheBranch { get; }
+
+        public static abstract uint EncoderAttentionHeads { get; }
+        
+        public static abstract uint EncoderLayers { get; }
+        
+        public static abstract uint DecoderAttentionHeads { get; }
+        
+        public static abstract uint DecoderLayers { get; }
     }
 }

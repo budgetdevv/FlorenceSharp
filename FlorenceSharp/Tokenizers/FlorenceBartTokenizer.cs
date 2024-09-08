@@ -54,7 +54,7 @@ namespace FlorenceSharp.Tokenizers
 
         public FlorenceBartTokenizer()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
         
         public FlorenceBartTokenizer(SessionOptions sessionOptions)

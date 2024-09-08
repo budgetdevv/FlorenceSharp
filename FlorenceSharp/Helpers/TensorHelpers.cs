@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -11,6 +12,7 @@ namespace FlorenceSharp.Helpers
 {
     public static class TensorHelpers
     {
+        
         public static ManagedTensor<T> CreateAndFillTensor<T>(T fill, ReadOnlySpan<int> dimensions)
             where T : unmanaged
         {
@@ -126,6 +128,41 @@ namespace FlorenceSharp.Helpers
             );
             
             return new(logitsOutput, indicesOutput);
+        }
+
+        public static T GetDimensionSize<T>(this ReadOnlySpan<T> dimensions)
+            where T: unmanaged, IMultiplyOperators<T, T, T>
+        {
+            var length = dimensions.Length;
+            
+            if (length != 0)
+            {
+                ref var currentValue = ref MemoryMarshal.GetReference(dimensions);
+            
+                ref var lastValueOffsetByOne = ref Unsafe.Add(ref currentValue, length);
+            
+                var accumulator = currentValue;
+
+                if (length != 1)
+                {
+                    for (currentValue = ref Unsafe.Add(ref currentValue, 1); 
+                         !Unsafe.AreSame(ref currentValue, ref lastValueOffsetByOne); 
+                         currentValue = ref Unsafe.Add(ref currentValue, 1))
+                    {
+                        accumulator *= currentValue;
+                    }
+                }
+            
+                return accumulator;
+            }
+
+            return default;
+        }
+
+        public static NamedOnnxValue AsNamedOnnxValue<T>(this DenseTensor<T> tensor, string name)
+            where T : unmanaged
+        {
+            return NamedOnnxValue.CreateFromTensor(name, tensor);
         }
     }
 }

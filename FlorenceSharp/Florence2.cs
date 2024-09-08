@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using FlorenceSharp.Configs;
 using FlorenceSharp.DecodingStrategies;
@@ -28,6 +29,13 @@ namespace FlorenceSharp
             public const string
                 INPUTS_EMBEDS_NAME = "inputs_embeds",
                 ATTENTION_MASK_NAME = "attention_mask";
+        }
+
+        private struct EncoderOutput
+        {
+            // https://imgur.com/a/wtqPvud
+            
+            public const string LAST_HIDDEN_STATE_NAME = "last_hidden_state";
         }
         
         private struct DecoderInput
@@ -277,22 +285,52 @@ namespace FlorenceSharp
                 imageFeatures,
                 attentionMask);
             
+            // https://imgur.com/a/florence2-encoder-wtqPvud
+            
+            // [ batch_size, encoder_sequence_length ]
+            var encoderSequenceLength = attentionMask.OnnxDenseTensor.Dimensions[1];
+            
+            // [ batch_size, encoder_sequence_length, 1024 ]
+            Debug.Assert(mergedInputEmbeds.OnnxDenseTensor.Dimensions[1] == encoderSequenceLength);
+            
             // https://imgur.com/a/wtqPvud
-            using var encoderOutput = EncoderOnnxModel.Session.Run(
-            [
-                mergedInputEmbeds.AsNamedOnnxValue(EncoderInput.INPUTS_EMBEDS_NAME),
-                mergedAttentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME),
-            ]);
             
-            var encoderHiddenStates = ManagedTensor<float>
-                .CopyFromDenseTensor((DenseTensor<float>) encoderOutput[0].Value);
+            // using var encoderOutput = EncoderOnnxModel.Session.Run(
+            // [
+            //     mergedInputEmbeds.AsNamedOnnxValue(EncoderInput.INPUTS_EMBEDS_NAME),
+            //     mergedAttentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME),
+            // ]);
+            //
+            // var encoderHiddenStates = ManagedTensor<float>
+            //     .CopyFromDenseTensor((DenseTensor<float>) encoderOutput[0].Value);
             
-            return DecodeAndGenerateText(encoderHiddenStates, mergedAttentionMask);
+            
+            // Same dimensions as mergedInputEmbeds
+            var encoderHiddenStates = new ManagedTensor<float>(
+                dimensions: mergedInputEmbeds.OnnxDenseTensor.Dimensions,
+                initialize: true,
+                pinned: true);
+            
+            // https://imgur.com/a/wtqPvud
+            EncoderOnnxModel.Session.Run(
+                inputs: 
+                [
+                    mergedInputEmbeds.AsNamedOnnxValue(EncoderInput.INPUTS_EMBEDS_NAME),
+                    mergedAttentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME),
+                ],
+                outputs:
+                [
+                    encoderHiddenStates.AsNamedOnnxValue(EncoderOutput.LAST_HIDDEN_STATE_NAME),
+                ]
+            );
+            
+            return DecodeAndGenerateText(encoderHiddenStates, mergedAttentionMask, encoderSequenceLength);
         }
 
         private string DecodeAndGenerateText(
             ManagedTensor<float> encoderHiddenStates,
-            ManagedTensor<long> mergedAttentionMask)
+            ManagedTensor<long> mergedAttentionMask,
+            int encoderSequenceLength)
         {
             ref var beamSearcher = ref BeamSearcher;
             
