@@ -313,7 +313,7 @@ namespace FlorenceSharp.DecodingStrategies
             
             var embeddedInputIDs = useCache ? 
                 beam.GetLatestTokenSlice(currentStepIndex) : 
-                // Since we are not using cache branch, we need to embed all the generated tokens again
+                // Since we are not using cache, we need to embed all the generated tokens again
                 // and pass the embeddings into the decoder.
 
                 // Get embeddings for the generated tokens
@@ -342,20 +342,16 @@ namespace FlorenceSharp.DecodingStrategies
                     pastKeyValues,
                     presentKeyValues,
                     currentStepIndex);
-
-                var isFirstStep = currentStepIndex == INITIAL_STEP_INDEX;
-                useCacheBranch = !isFirstStep;
+                
+                useCacheBranch = currentStepIndex != INITIAL_STEP_INDEX;
                 
                 encoderPastKeyValues.PopulateInputPastKeyValues(
                     pastKeyValues,
-                    isFirstStep ? 0 : encoderSequenceLength);
-                
-                if (isFirstStep)
-                {
-                    encoderPastKeyValues.PopulateOutputPresentKeyValues(presentKeyValues, encoderSequenceLength);
-                    // Console.WriteLine(((DenseTensor<float>) presentKeyValues[^1].Value).Dimensions.GetSpanPrintString());
-                }
-                
+                    presentKeyValues,
+                    encoderSequenceLength,
+                    useCacheBranch
+                );
+
                 Debug.Assert(pastKeyValues.Count == listSize);
             }
             

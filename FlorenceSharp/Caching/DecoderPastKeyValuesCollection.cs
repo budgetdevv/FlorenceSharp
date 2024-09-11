@@ -263,7 +263,9 @@ namespace FlorenceSharp.Caching
 
         public void PopulateInputPastKeyValues(
             List<NamedOnnxValue> inputs,
-            int encoderSequenceLength)
+            List<NamedOnnxValue> outputs,
+            int encoderSequenceLength,
+            bool useCacheBranch)
         {
             var pastKeyValues = PastKeyValues;
             var pastKeyValuesNames = PastKeyValueNames<ConfigT>.NAMES;
@@ -272,60 +274,50 @@ namespace FlorenceSharp.Caching
 
             // [ batch_size, 16, encoder_sequence_length, 64 ]
             var encoderAttentionHeads = unchecked((int) ConfigT.EncoderAttentionHeads);
-
-            ReadOnlySpan<int> encoderDimensions = [ 1, encoderAttentionHeads, encoderSequenceLength, 64 ];
             
-            var encoderLinearLength = encoderDimensions.GetDimensionSize();
+            // For initial step where we do NOT use the cache branch, the input sequence length is 0.
+            // Subsequent steps we feed the output from the initial step, and omit output tensors for.
+            var encoderInputSequenceLength = useCacheBranch ? encoderSequenceLength : 0;
 
+            ReadOnlySpan<int> encoderInputDimensions = [ 1, encoderAttentionHeads, encoderInputSequenceLength, 64 ];
+            
+            ReadOnlySpan<int> encoderOutputDimensions = [ 1, encoderAttentionHeads, encoderSequenceLength, 64 ];
+            
+            var encoderInputLinearLength = encoderInputDimensions.GetDimensionSize();
+
+            var encoderOutputLinearLength = encoderOutputDimensions.GetDimensionSize();
+            
             for (int i = 0; i < ConfigT.EncoderLayers; i++)
             {
                 var pastKeyValue = pastKeyValues[i];
                 ref var pastKeyValueNames = ref pastKeyValuesNames[i];
 
                 var pastKey = new DenseTensor<float>(
-                    pastKeyValue.PastKey.AsMemory(0, encoderLinearLength), 
-                    encoderDimensions);
+                    pastKeyValue.PastKey.AsMemory(0, encoderInputLinearLength), 
+                    encoderInputDimensions);
                 
                 var pastValue = new DenseTensor<float>(
-                    pastKeyValue.PastValue.AsMemory(0, encoderLinearLength), 
-                    encoderDimensions);
+                    pastKeyValue.PastValue.AsMemory(0, encoderInputLinearLength), 
+                    encoderInputDimensions);
 
                 inputs.Add(pastKey.AsNamedOnnxValue(pastKeyValueNames.PastEncoderKeyName));
                 inputs.Add(pastValue.AsNamedOnnxValue(pastKeyValueNames.PastEncoderValueName));
-            }
-        }
-        
-        public void PopulateOutputPresentKeyValues(
-            List<NamedOnnxValue> outputs,
-            int encoderSequenceLength)
-        {
-            var pastKeyValues = PastKeyValues;
-            var pastKeyValuesNames = PastKeyValueNames<ConfigT>.NAMES;
 
-            // https://imgur.com/a/florence2-decoder-merged-tI0RFxq
-
-            // [ batch_size, 16, encoder_sequence_length, 64 ]
-            var encoderAttentionHeads = unchecked((int) ConfigT.EncoderAttentionHeads);
-
-            ReadOnlySpan<int> encoderDimensions = [ 1, encoderAttentionHeads, encoderSequenceLength, 64 ];
-            
-            var encoderLinearLength = encoderDimensions.GetDimensionSize();
-
-            for (int i = 0; i < ConfigT.EncoderLayers; i++)
-            {
-                var pastKeyValue = pastKeyValues[i];
-                ref var pastKeyValueNames = ref pastKeyValuesNames[i];
-
-                var pastKey = new DenseTensor<float>(
-                    pastKeyValue.PastKey.AsMemory(0, encoderLinearLength), 
-                    encoderDimensions);
+                // For the first step where we don't use cache branch, we need to collect
+                // the present key and value tensors for encoder.
+                if (!useCacheBranch)
+                {
+                    var presentKey = new DenseTensor<float>(
+                        pastKeyValue.PastKey.AsMemory(0, encoderOutputLinearLength), 
+                        encoderOutputDimensions);
                 
-                var pastValue = new DenseTensor<float>(
-                    pastKeyValue.PastValue.AsMemory(0, encoderLinearLength), 
-                    encoderDimensions);
+                    var presentValue = new DenseTensor<float>(
+                        pastKeyValue.PastValue.AsMemory(0, encoderOutputLinearLength), 
+                        encoderOutputDimensions);
 
-                outputs.Add(pastKey.AsNamedOnnxValue(pastKeyValueNames.PresentEncoderKeyName));
-                outputs.Add(pastValue.AsNamedOnnxValue(pastKeyValueNames.PresentEncoderValueName));
+                    outputs.Add(presentKey.AsNamedOnnxValue(pastKeyValueNames.PresentEncoderKeyName));
+                    outputs.Add(presentValue.AsNamedOnnxValue(pastKeyValueNames.PresentEncoderValueName));
+                }
             }
         }
     }
