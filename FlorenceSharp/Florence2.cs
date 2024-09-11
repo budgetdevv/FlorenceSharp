@@ -2,7 +2,9 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using FlorenceSharp.Caching;
 using FlorenceSharp.Configs;
 using FlorenceSharp.DecodingStrategies;
 using FlorenceSharp.Helpers;
@@ -126,13 +128,13 @@ namespace FlorenceSharp
 
         private const string EOS_TOKEN = FlorenceSpecialTokens.END_OF_SEQUENCE;
 
-        private readonly long EndOfSequenceTokenID;
+        internal readonly long EndOfSequenceTokenID;
         
         private BeamSearcher<ConfigT> BeamSearcher;
         
         private readonly FlorenceStopCriteria<ConfigT> StoppingCriteria;
         
-        private readonly NamedOnnxValue UseCacheBranchOnnxValue;
+        private readonly NamedOnnxValue UseCacheBranchTrueOnnxValue, UseCacheBranchFalseOnnxValue;
 
         public Florence2()
         {
@@ -156,10 +158,18 @@ namespace FlorenceSharp
             var useCacheBranchTensor = new ManagedTensor<bool>(
                 dimensions: (ReadOnlySpan<nint>) [ 1 ],
                 initialize: false);
-            
-            useCacheBranchTensor.ValuesArr[0] = ConfigT.UseCacheBranch;
 
-            UseCacheBranchOnnxValue = useCacheBranchTensor.AsNamedOnnxValue(DecoderInput.USE_CACHE_BRANCH_NAME);
+            useCacheBranchTensor.ValuesArr[0] = true;
+
+            UseCacheBranchTrueOnnxValue = useCacheBranchTensor.AsNamedOnnxValue(DecoderInput.USE_CACHE_BRANCH_NAME);
+            
+            var useCacheBranchFalseTensor = new ManagedTensor<bool>(
+                dimensions: (ReadOnlySpan<nint>) [ 1 ],
+                initialize: false);
+            
+            useCacheBranchFalseTensor.ValuesArr[0] = false;
+            
+            UseCacheBranchFalseOnnxValue = useCacheBranchFalseTensor.AsNamedOnnxValue(DecoderInput.USE_CACHE_BRANCH_NAME);
         }
 
         public string GenerateCaption(ReadOnlySpan<byte> imagePixels)
@@ -217,32 +227,49 @@ namespace FlorenceSharp
            return inputEmbeds;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ManagedTensor<float> DecodeIntoLogits(
             ManagedTensor<long> encoderAttentionMask,
             ManagedTensor<float> encoderHiddenStates,
-            ManagedTensor<float> inputEmbeds)
+            ManagedTensor<float> inputEmbeds,
+            List<NamedOnnxValue> pastKeyValues,
+            List<NamedOnnxValue> presentKeyValues,
+            bool useCacheBranch)
         {
-            var inputEmbedsDimensions = inputEmbeds.OnnxDenseTensor.Dimensions.ToArray();
+            var outputLogitsDimensions = inputEmbeds.OnnxDenseTensor.Dimensions.ToArray();
             
-            inputEmbedsDimensions[^1] = 51289;
+            outputLogitsDimensions[^1] = 51289;
             
             // https://imgur.com/a/tI0RFxq
             
             var outputLogitsTensor = new ManagedTensor<float>(
-                dimensions: (ReadOnlySpan<int>) inputEmbedsDimensions,
+                dimensions: (ReadOnlySpan<int>) outputLogitsDimensions,
                 initialize: true);
 
+            // useCacheBranch will always be false if UseCache is.
+            useCacheBranch = useCacheBranch && ConfigT.UseCache;
+            
+            var useCacheBranchTensor = useCacheBranch ? 
+                UseCacheBranchTrueOnnxValue : 
+                UseCacheBranchFalseOnnxValue;
+
+            // Console.WriteLine("--------");
+            // pastKeyValues.PrintOnnxValueNameAndDimensions();
+            // Console.WriteLine("--------");
+            
             DecoderOnnxModel.Session.Run(
             inputs:
             [
                 encoderAttentionMask.AsNamedOnnxValue(DecoderInput.ENCODER_ATTENTION_MASK_NAME),
                 encoderHiddenStates.AsNamedOnnxValue(DecoderInput.ENCODER_HIDDEN_STATES_NAME),
                 inputEmbeds.AsNamedOnnxValue(DecoderInput.INPUTS_EMBEDS_NAME),
-                UseCacheBranchOnnxValue,
+                useCacheBranchTensor,
+                ..pastKeyValues,
             ],
             outputs:
             [
                 outputLogitsTensor.AsNamedOnnxValue("logits"),
+                ..presentKeyValues,
             ]);
 
             // Console.WriteLine(outputLogitsTensor.OnnxDenseTensor.Dimensions.GetSpanPrintString());
@@ -288,22 +315,12 @@ namespace FlorenceSharp
             // https://imgur.com/a/florence2-encoder-wtqPvud
             
             // [ batch_size, encoder_sequence_length ]
-            var encoderSequenceLength = attentionMask.OnnxDenseTensor.Dimensions[1];
+            var encoderSequenceLength = mergedAttentionMask.OnnxDenseTensor.Dimensions[1];
             
             // [ batch_size, encoder_sequence_length, 1024 ]
             Debug.Assert(mergedInputEmbeds.OnnxDenseTensor.Dimensions[1] == encoderSequenceLength);
             
             // https://imgur.com/a/wtqPvud
-            
-            // using var encoderOutput = EncoderOnnxModel.Session.Run(
-            // [
-            //     mergedInputEmbeds.AsNamedOnnxValue(EncoderInput.INPUTS_EMBEDS_NAME),
-            //     mergedAttentionMask.AsNamedOnnxValue(EncoderInput.ATTENTION_MASK_NAME),
-            // ]);
-            //
-            // var encoderHiddenStates = ManagedTensor<float>
-            //     .CopyFromDenseTensor((DenseTensor<float>) encoderOutput[0].Value);
-            
             
             // Same dimensions as mergedInputEmbeds
             var encoderHiddenStates = new ManagedTensor<float>(
@@ -332,19 +349,15 @@ namespace FlorenceSharp
             ManagedTensor<long> mergedAttentionMask,
             int encoderSequenceLength)
         {
-            ref var beamSearcher = ref BeamSearcher;
-            
-            ref readonly var tokenizer = ref Tokenizer;
-
-            var searchResult = beamSearcher.Search(
+            var searchResult = BeamSearcher.Search(
                 encoderHiddenStates,
                 mergedAttentionMask,
                 this,
-                in tokenizer,
-                in StoppingCriteria);
+                in StoppingCriteria,
+                encoderSequenceLength);
 
             // TODO: Implement post-processing
-            return tokenizer.Decode(searchResult);
+            return Tokenizer.Decode(searchResult);
         }
         
         private static (ManagedTensor<float> mergedInputEmbeds, ManagedTensor<long> mergedAttentionMask) MergeTokenEmbeddingsAndImageFeatures(

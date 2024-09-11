@@ -25,7 +25,7 @@
         
         public static abstract float LengthPenalty { get; }
         
-        public static abstract bool UseCacheBranch { get; }
+        public static abstract bool UseCache { get; }
 
         public static abstract uint EncoderAttentionHeads { get; }
         

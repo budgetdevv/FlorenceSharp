@@ -12,10 +12,11 @@ using FlorenceSharp.StoppingCriteria;
 using FlorenceSharp.Tensor;
 using FlorenceSharp.Tokenizers;
 using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace FlorenceSharp.DecodingStrategies
 {
-    public struct BeamSearcher<ConfigT> where ConfigT : struct, IFlorenceConfiguration
+    internal struct BeamSearcher<ConfigT> where ConfigT : struct, IFlorenceConfiguration
     {
         // https://huggingface.co/spaces/m-ric/beam_search_visualizer
 
@@ -28,7 +29,7 @@ namespace FlorenceSharp.DecodingStrategies
 
         // Values are derived from IDefaultFlorence2Config ( Refer to comment link in it )
 
-        private readonly struct SampleResult(
+        public readonly struct SampleResult(
             int generatedTokenId,
             double cumulativeTokenScore,
             int parentBeamIndex): IComparable<SampleResult>
@@ -47,7 +48,7 @@ namespace FlorenceSharp.DecodingStrategies
             }
         }
 
-        private struct Beam
+        public struct Beam
         {
             private readonly long[] GeneratedTokenIDs;
             
@@ -83,18 +84,17 @@ namespace FlorenceSharp.DecodingStrategies
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public Memory<long> GetLatestTokenSlice(int currentStepIndex)
             {
-                Debug.Assert(ConfigT.UseCacheBranch);
+                Debug.Assert(ConfigT.UseCache);
                 
                 return GeneratedTokenIDs.AsMemory(currentStepIndex - 1, 1);
             }
 
-            public void PopulateInputAndOutputWithPastKeyValues(
+            public void PopulateInputAndOutputWithDecoderPastKeyValuesAndSwapBuffers(
                 List<NamedOnnxValue> inputs,
                 List<NamedOnnxValue> outputs,
-                int currentStepIndex,
-                int encoderSequenceLength)
+                int currentStepIndex)
             {
-                DecoderPastKeyValuesCollection.PopulateInputAndOutputWithPastKeyValues(
+                DecoderPastKeyValuesCollection.PopulateInputAndOutputWithPastKeyValuesAndSwapBuffers(
                     inputs,
                     outputs,
                     currentStepIndex
@@ -115,7 +115,7 @@ namespace FlorenceSharp.DecodingStrategies
                 int currentStepIndex,
                 Beam[] beams)
             {
-                var sourceBeam = beams[result.ParentBeamIndex];
+                ref var sourceBeam = ref beams[result.ParentBeamIndex];
                 
                 var sourceTokenIDs = sourceBeam.GeneratedTokenIDs;
                 
@@ -126,6 +126,8 @@ namespace FlorenceSharp.DecodingStrategies
                 destinationTokenIDs[currentStepIndex] = result.GeneratedTokenID;
                 
                 CumulativeScore = result.CumulativeTokenScore;
+                
+                sourceBeam.DecoderPastKeyValuesCollection.CopyTo(in DecoderPastKeyValuesCollection, currentStepIndex);
             }
 
             public bool BackingMemoryEquals(SampleResult result, Beam[] beams)
@@ -252,6 +254,8 @@ namespace FlorenceSharp.DecodingStrategies
 
         private readonly List<SampleResult> SampleResultsWithDuplicateBeamIndex;
 
+        private readonly EncoderPastKeyValuesCollection<ConfigT> EncoderPastKeyValues;
+        
         private HypothesisCollection Hypotheses;
 
         public BeamSearcher()
@@ -285,48 +289,92 @@ namespace FlorenceSharp.DecodingStrategies
             {
                 beams[i] = new(endOfSequenceTokenID);
             }
+            
+            EncoderPastKeyValues = new();
 
             Hypotheses = new();
         }
 
-        private static void Sample(
-            Beam beam, 
+        private static void Sample(Beam beam,
             int currentBeamIndex,
             int currentStepIndex,
             SampleResult[] sampledResults,
             // Required inputs for decoder
             ManagedTensor<long> encoderAttentionMask,
             ManagedTensor<float> encoderHiddenStates,
+            in EncoderPastKeyValuesCollection<ConfigT> encoderPastKeyValues,
+            int encoderSequenceLength,
             Florence2<ConfigT> florence2)
         {
-            Memory<long> inputIDs;
 
-            ManagedTensor<float> inputEmbeds, logits;
+            var useCache = ConfigT.UseCache;
             
-            inputIDs = beam.GetCurrentStepSlice(currentStepIndex);
-
-            if (ConfigT.UseCacheBranch)
-            {
-                throw new NotImplementedException();
-            }
+            var inputIDs = beam.GetCurrentStepSlice(currentStepIndex);
             
-            else
-            {
+            var embeddedInputIDs = useCache ? 
+                beam.GetLatestTokenSlice(currentStepIndex) : 
                 // Since we are not using cache branch, we need to embed all the generated tokens again
                 // and pass the embeddings into the decoder.
 
                 // Get embeddings for the generated tokens
                 // Output dimensions will be [ batch_size, sequence_length, 1024 ],
                 // where sequence length is inputIDs.Length.
-                inputEmbeds = florence2.GenerateEmbeddingsForInputIDs(inputIDs, batchSize: 1);
+                inputIDs;
+
+            var inputEmbeds = florence2.GenerateEmbeddingsForInputIDs(embeddedInputIDs, batchSize: 1);
             
-                // Decode into logits
+            // Decode into logits
+            
+            // TODO: Cache this list so we don't have to allocate it every time.
+            List<NamedOnnxValue> pastKeyValues, presentKeyValues;
 
-                logits = florence2.DecodeIntoLogits(
-                    encoderAttentionMask,
-                    encoderHiddenStates,
-                    inputEmbeds);
+            var useCacheBranch = false;
+            
+            if (useCache)
+            {
+                // * 2 cuz key + value
+                var listSize = unchecked((int) ((ConfigT.EncoderLayers + ConfigT.DecoderLayers) * 2));
+                
+                pastKeyValues = new(listSize);
+                presentKeyValues = new(listSize);
+                
+                beam.PopulateInputAndOutputWithDecoderPastKeyValuesAndSwapBuffers(
+                    pastKeyValues,
+                    presentKeyValues,
+                    currentStepIndex);
 
+                var isFirstStep = currentStepIndex == INITIAL_STEP_INDEX;
+                useCacheBranch = !isFirstStep;
+                
+                encoderPastKeyValues.PopulateInputPastKeyValues(
+                    pastKeyValues,
+                    isFirstStep ? 0 : encoderSequenceLength);
+                
+                if (isFirstStep)
+                {
+                    encoderPastKeyValues.PopulateOutputPresentKeyValues(presentKeyValues, encoderSequenceLength);
+                    // Console.WriteLine(((DenseTensor<float>) presentKeyValues[^1].Value).Dimensions.GetSpanPrintString());
+                }
+                
+                Debug.Assert(pastKeyValues.Count == listSize);
+            }
+            
+            else
+            {
+                pastKeyValues = presentKeyValues = [];
+            }
+
+            var logits = florence2.DecodeIntoLogits(
+                encoderAttentionMask,
+                encoderHiddenStates,
+                inputEmbeds,
+                pastKeyValues,
+                presentKeyValues,
+                useCacheBranch
+            );
+            
+            if (!useCache)
+            {
                 // Since we have to embed all the generated tokens again, we end up with logits for
                 // all the generated tokens. However, we are only interested in the most recently generated token.
                 
@@ -347,6 +395,8 @@ namespace FlorenceSharp.DecodingStrategies
             
             var topKResult = logits.TopK(ConfigT.TopK);
 
+            Debug.Assert(topKResult.Logits.ValuesArr.Length == ConfigT.TopK);
+            
             var logitsSoftmax = topKResult.Logits.SoftMaxInPlace().ValuesArr;
             
             var topKIndices = topKResult.Indices.ValuesArr;
@@ -367,13 +417,14 @@ namespace FlorenceSharp.DecodingStrategies
             }
         }
         
-        public Memory<long> Search(
-            ManagedTensor<float> encoderHiddenStates,
-            ManagedTensor<long> encoderAttentionMask,
-            Florence2<ConfigT> florence2,
-            in FlorenceBartTokenizer tokenizer,
-            in FlorenceStopCriteria<ConfigT> stoppingCriteria)
-            // out int outputTokens)
+        private const int INITIAL_STEP_INDEX = 1;
+        
+        public Memory<long> Search(ManagedTensor<float> 
+                encoderHiddenStates,
+                ManagedTensor<long> encoderAttentionMask,
+                Florence2<ConfigT> florence2,
+                in FlorenceStopCriteria<ConfigT> stoppingCriteria,
+                int encoderSequenceLength)
         {
             var beams = Beams;
             
@@ -385,13 +436,15 @@ namespace FlorenceSharp.DecodingStrategies
 
             ref var initialBeam = ref beams[0];
             
+            Debug.Assert(initialBeam.GetLatestTokenSlice(currentStepIndex: INITIAL_STEP_INDEX).Span[0] == florence2.EndOfSequenceTokenID);
+            
             // Sample the first beam
             
             // currentBeamIndex is 0-based, while currentStepIndex is NOT
             
             var sampledResults = SampledResults;
 
-            const int INITIAL_STEP_INDEX = 1;
+            ref readonly var encoderPastKeyValues = ref EncoderPastKeyValues;
             
             Sample(
                 initialBeam,
@@ -400,6 +453,8 @@ namespace FlorenceSharp.DecodingStrategies
                 sampledResults,
                 encoderAttentionMask,
                 encoderHiddenStates,
+                in encoderPastKeyValues,
+                encoderSequenceLength,
                 florence2);
             
             // Create the 3 beams
@@ -410,7 +465,12 @@ namespace FlorenceSharp.DecodingStrategies
             {
                 ref var currentBeam = ref beams[currentBeamIndex];
                 
-                currentBeam.AppendSampleResult(sampledResults[currentBeamIndex], currentStepIndex: INITIAL_STEP_INDEX);
+                // currentBeam.AppendSampleResult(sampledResults[currentBeamIndex], currentStepIndex: INITIAL_STEP_INDEX);
+                
+                currentBeam.OverwriteWithSampleResult(
+                    sampledResults[currentBeamIndex],
+                    currentStepIndex: INITIAL_STEP_INDEX,
+                    beams);
             }
             
             var outstandingBeamIndices = OutstandingBeamIndices;
@@ -446,9 +506,11 @@ namespace FlorenceSharp.DecodingStrategies
                         currentBeam,
                         currentBeamIndex: currentBeamIndex,
                         currentStepIndex: currentStepIndex,
-                        sampledResults,
-                        encoderAttentionMask,
-                        encoderHiddenStates,
+                        sampledResults: sampledResults,
+                        encoderAttentionMask: encoderAttentionMask,
+                        encoderHiddenStates: encoderHiddenStates,
+                        in encoderPastKeyValues,
+                        encoderSequenceLength,
                         florence2);
                 }
                 

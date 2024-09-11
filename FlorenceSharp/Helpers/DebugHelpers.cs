@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using FlorenceSharp.Tensor;
+using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace FlorenceSharp.Helpers
 {
@@ -52,6 +55,44 @@ namespace FlorenceSharp.Helpers
                 Console.Write(tensor.GetValue(i) + " ");
             }
             Console.WriteLine();
+        }
+
+        public static void PrintOnnxValueNameAndDimensions(this IEnumerable<NamedOnnxValue> onnxValues)
+        {
+            foreach (var onnxValue in onnxValues)
+            {
+                var val = onnxValue.Value;
+                
+                ReadOnlySpan<int> dimensions;
+
+                if (val is DenseTensor<float> fTensor)
+                {
+                    dimensions = fTensor.Dimensions;
+                }
+                
+                else if (val is DenseTensor<long> lTensor)
+                {
+                    dimensions = lTensor.Dimensions;
+                }
+                
+                else if (val is DenseTensor<bool> bTensor)
+                {
+                    dimensions = bTensor.Dimensions;
+                }
+                
+                else if (val is DenseTensor<double> dTensor)
+                {
+                    dimensions = dTensor.Dimensions;
+                }
+
+                else
+                {
+                    throw new NotSupportedException();
+                }
+                
+                
+                Console.WriteLine($"Name: {onnxValue.Name} | Dimensions: {dimensions.GetSpanPrintString()}");
+            }
         }
     }
 }

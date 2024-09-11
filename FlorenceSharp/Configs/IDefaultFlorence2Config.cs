@@ -63,14 +63,14 @@ namespace FlorenceSharp.Configs
         
         static float IFlorenceGenerationConfiguration.LengthPenalty => 1.0f;
         
-        static bool IFlorenceGenerationConfiguration.UseCacheBranch => false;
+        static bool IFlorenceGenerationConfiguration.UseCache => true;
         
-        static uint IFlorenceGenerationConfiguration.EncoderAttentionHeads => 12;
+        static uint IFlorenceGenerationConfiguration.EncoderAttentionHeads => 16;
         
-        static uint IFlorenceGenerationConfiguration.EncoderLayers => 6;
+        static uint IFlorenceGenerationConfiguration.EncoderLayers => 12;
         
-        static uint IFlorenceGenerationConfiguration.DecoderAttentionHeads => 12;
+        static uint IFlorenceGenerationConfiguration.DecoderAttentionHeads => 16;
         
-        static uint IFlorenceGenerationConfiguration.DecoderLayers => 6;
+        static uint IFlorenceGenerationConfiguration.DecoderLayers => 12;
     }
 }

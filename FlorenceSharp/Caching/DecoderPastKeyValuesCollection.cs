@@ -68,24 +68,38 @@ namespace FlorenceSharp.Caching
             PresentDecoderValueName = $"{PRESENT_KEY_VALUES_NAME_PREFIX}.{currentIndex}.decoder.value";
         }
     }
+
+    internal static class PastKeyValuesHelpers<ConfigT> where ConfigT: IFlorenceGenerationConfiguration
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ComputeTensorSizeFast(int sequenceLength)
+        {
+            // JIT should fold 1, ConfigT.EncoderLayers and 64 into a constant,
+            // which means a single multiplication.
+            
+            // [ batch_size, 16, encoder_sequence_length, 64 ]
+            // [ batch_size, 16, decoder_sequence_length, 64 ]
+            // https://imgur.com/a/florence2-decoder-merged-tI0RFxq
+            
+            return unchecked((int) (1 * ConfigT.EncoderAttentionHeads * sequenceLength * 64));
+        }
+    }
     
     public readonly struct DecoderPastKeyValuesCollection<ConfigT> where ConfigT: IFlorenceGenerationConfiguration
     {
         private struct DecoderKeyValuePair
         {
-            public readonly float[]
+            public float[]
                 // These are for inputting
                 PastKey,
                 PastValue,
                 // These are for outputting
-                // PresentKeyValuesEncoderKey,
-                // PresentKeyValuesEncoderValue,
                 PresentKey,
                 PresentValue;
 
             public DecoderKeyValuePair()
             {
-                var size = ComputeTensorSizeFast(unchecked((int) ConfigT.MaxLength));
+                var size = PastKeyValuesHelpers<ConfigT>.ComputeTensorSizeFast(unchecked((int) ConfigT.MaxLength));
                 
                 // Negative infinity is just for debugging purposes -
                 // It indicates that a given slot have yet to be written to.
@@ -115,28 +129,8 @@ namespace FlorenceSharp.Caching
                 pastKeyValues[i] = new();
             }
         }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int ComputeTensorSizeFast(int sequenceLength)
-        {
-            // JIT should fold 1, ConfigT.EncoderLayers and 64 into a constant,
-            // which means a single multiplication.
-            
-            // [ batch_size, 16, encoder_sequence_length, 64 ]
-            // https://imgur.com/a/florence2-decoder-merged-tI0RFxq
-            
-            return unchecked((int) (1 * ConfigT.EncoderLayers * sequenceLength * 64));
-        }
         
-        // private static TensorDimensionInt4 ComputeTensorDimensions(int sequenceLength)
-        // {
-        //     // [ batch_size, 16, encoder_sequence_length, 64 ]
-        //     // https://imgur.com/a/florence2-decoder-merged-tI0RFxq
-        //
-        //     return new(1, unchecked((int) ConfigT.EncoderLayers), sequenceLength, 64);
-        // }
-        
-        public void PopulateInputAndOutputWithPastKeyValues(
+        public void PopulateInputAndOutputWithPastKeyValuesAndSwapBuffers(
             List<NamedOnnxValue> inputs,
             List<NamedOnnxValue> outputs,
             int currentStepIndex)
@@ -150,44 +144,85 @@ namespace FlorenceSharp.Caching
             // ReadOnlySpan<int> encoderDimensions = [ 1, unchecked((int) ConfigT.EncoderLayers), encoderSequenceLength, 64 ];
             
             // [ batch_size, 16, decoder_sequence_length, 64 ]
-            var decoderLayers = unchecked((int) ConfigT.DecoderLayers);
+            var decoderAttentionHeads = unchecked((int) ConfigT.DecoderAttentionHeads);
             
             // currentStepIndex is 1-based, but the input is based on previous number of InputIDs.
             // So we do currentStepIndex - 1
             
-            ReadOnlySpan<int> decoderInputDimensions = [ 1, decoderLayers, currentStepIndex - 1, 64 ];
+            ReadOnlySpan<int> decoderInputDimensions = [ 1, decoderAttentionHeads, currentStepIndex - 1, 64 ];
             
-            ReadOnlySpan<int> decoderOutputDimensions = [ 1, decoderLayers, currentStepIndex, 64 ];
+            ReadOnlySpan<int> decoderOutputDimensions = [ 1, decoderAttentionHeads, currentStepIndex, 64 ];
 
             var decoderInputLinearLength = decoderInputDimensions.GetDimensionSize();
             var decoderOutputLinearLength = decoderOutputDimensions.GetDimensionSize();
             
             for (int i = 0; i < ConfigT.EncoderLayers; i++)
             {
-                var pastKeyValue = pastKeyValues[i];
+                ref var pastKeyValue = ref pastKeyValues[i];
                 var pastKeyValueNames = pastKeyValuesNames[i];
                 
-                var pastKey = new DenseTensor<float>(
-                    pastKeyValue.PastKey.AsMemory(0, decoderInputLinearLength),
+                ref var pastKey = ref pastKeyValue.PastKey;
+                ref var pastValue = ref pastKeyValue.PastValue;
+                
+                ref var presentKey = ref pastKeyValue.PresentKey;
+                ref var presentValue = ref pastKeyValue.PresentValue;
+                
+                var pastKeyTensor = new DenseTensor<float>(
+                    pastKey.AsMemory(0, decoderInputLinearLength),
                     decoderInputDimensions);
                 
-                var pastValue = new DenseTensor<float>(
-                    pastKeyValue.PastValue.AsMemory(0, decoderInputLinearLength),
+                var pastValueTensor = new DenseTensor<float>(
+                    pastValue.AsMemory(0, decoderInputLinearLength),
                     decoderInputDimensions);
                 
-                var presentKey = new DenseTensor<float>(
-                    pastKeyValue.PresentKey.AsMemory(0, decoderOutputLinearLength),
+                var presentKeyTensor = new DenseTensor<float>(
+                    presentKey.AsMemory(0, decoderOutputLinearLength),
                     decoderOutputDimensions);
                 
-                var presentValue = new DenseTensor<float>(
-                    pastKeyValue.PresentValue.AsMemory(0, decoderOutputLinearLength),
+                var presentValueTensor = new DenseTensor<float>(
+                    presentValue.AsMemory(0, decoderOutputLinearLength),
                     decoderOutputDimensions);
                 
-                inputs.Add(pastKey.AsNamedOnnxValue(pastKeyValueNames.PastDecoderKeyName));
-                inputs.Add(pastValue.AsNamedOnnxValue(pastKeyValueNames.PastDecoderValueName));
+                inputs.Add(pastKeyTensor.AsNamedOnnxValue(pastKeyValueNames.PastDecoderKeyName));
+                inputs.Add(pastValueTensor.AsNamedOnnxValue(pastKeyValueNames.PastDecoderValueName));
                 
-                outputs.Add(presentKey.AsNamedOnnxValue(pastKeyValueNames.PresentDecoderKeyName));
-                outputs.Add(presentValue.AsNamedOnnxValue(pastKeyValueNames.PresentDecoderValueName));
+                outputs.Add(presentKeyTensor.AsNamedOnnxValue(pastKeyValueNames.PresentDecoderKeyName));
+                outputs.Add(presentValueTensor.AsNamedOnnxValue(pastKeyValueNames.PresentDecoderValueName));
+                
+                // Swap inputs with outputs! New outputs will become inputs, which avoids copying!
+                
+                (pastKey, presentKey) = (presentKey, pastKey);
+                (pastValue, presentValue) = (presentValue, pastValue);
+            }
+        }
+        
+        public void CopyTo(
+            in DecoderPastKeyValuesCollection<ConfigT> other,
+            int currentStepIndex)
+        {
+            var pastKeyValues = PastKeyValues;
+            var otherPastKeyValues = other.PastKeyValues;
+
+            for (int i = 0; i < ConfigT.EncoderLayers; i++)
+            {
+                ref var pastKeyValue = ref pastKeyValues[i];
+                ref var otherPastKeyValue = ref otherPastKeyValues[i];
+
+                pastKeyValue.PastKey
+                    .AsSpan(0, currentStepIndex)
+                    .CopyTo(otherPastKeyValue.PastKey);
+
+                pastKeyValue.PastValue
+                    .AsSpan(0, currentStepIndex)
+                    .CopyTo(otherPastKeyValue.PastValue);
+
+                pastKeyValue.PresentKey
+                    .AsSpan(0, currentStepIndex)
+                    .CopyTo(otherPastKeyValue.PresentKey);
+                
+                pastKeyValue.PresentValue
+                    .AsSpan(0, currentStepIndex)
+                    .CopyTo(otherPastKeyValue.PresentValue);
             }
         }
     }
@@ -196,14 +231,11 @@ namespace FlorenceSharp.Caching
     {
         private struct EncoderKeyValuePair
         {
-            public readonly float[]
-                // These are for inputting
-                PastKey,
-                PastValue;
+            public readonly float[] PastKey, PastValue;
 
             public EncoderKeyValuePair()
             {
-                var size = ComputeTensorSizeFast(unchecked((int)ConfigT.MaxLength));
+                var size = PastKeyValuesHelpers<ConfigT>.ComputeTensorSizeFast(unchecked((int) ConfigT.MaxLength));
 
                 // Negative infinity is just for debugging purposes -
                 // It indicates that a given slot have yet to be written to.
@@ -228,18 +260,6 @@ namespace FlorenceSharp.Caching
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int ComputeTensorSizeFast(int sequenceLength)
-        {
-            // JIT should fold 1, ConfigT.EncoderLayers and 64 into a constant,
-            // which means a single multiplication.
-
-            // [ batch_size, 16, decoder_sequence_length, 64 ]
-            // https://imgur.com/a/florence2-decoder-merged-tI0RFxq
-
-            return unchecked((int)(1 * ConfigT.EncoderLayers * sequenceLength * 64));
-        }
-
         public void PopulateInputPastKeyValues(
             List<NamedOnnxValue> inputs,
             int encoderSequenceLength)
@@ -250,9 +270,9 @@ namespace FlorenceSharp.Caching
             // https://imgur.com/a/florence2-decoder-merged-tI0RFxq
 
             // [ batch_size, 16, encoder_sequence_length, 64 ]
-            var encoderLayers = unchecked((int) ConfigT.DecoderLayers);
+            var encoderAttentionHeads = unchecked((int) ConfigT.EncoderAttentionHeads);
 
-            ReadOnlySpan<int> encoderDimensions = [1, encoderLayers, encoderSequenceLength, 64];
+            ReadOnlySpan<int> encoderDimensions = [ 1, encoderAttentionHeads, encoderSequenceLength, 64 ];
             
             var encoderLinearLength = encoderDimensions.GetDimensionSize();
 
@@ -284,9 +304,9 @@ namespace FlorenceSharp.Caching
             // https://imgur.com/a/florence2-decoder-merged-tI0RFxq
 
             // [ batch_size, 16, encoder_sequence_length, 64 ]
-            var encoder = unchecked((int) ConfigT.DecoderLayers);
+            var encoderAttentionHeads = unchecked((int) ConfigT.EncoderAttentionHeads);
 
-            ReadOnlySpan<int> encoderDimensions = [1, encoder, encoderSequenceLength, 64];
+            ReadOnlySpan<int> encoderDimensions = [ 1, encoderAttentionHeads, encoderSequenceLength, 64 ];
             
             var encoderLinearLength = encoderDimensions.GetDimensionSize();
 
