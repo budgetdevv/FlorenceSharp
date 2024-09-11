@@ -158,7 +158,8 @@ namespace FlorenceSharp.Caching
             
             for (int i = 0; i < ConfigT.EncoderLayers; i++)
             {
-                var pastKeyValue = pastKeyValues[i];
+                // This MUST be passed via ref, as we perform swap operation below.
+                ref var pastKeyValue = ref pastKeyValues[i];
                 // We only use like half the names, pass via ref
                 ref var pastKeyValueNames = ref pastKeyValuesNames[i];
                 
