@@ -158,8 +158,9 @@ namespace FlorenceSharp.Caching
             
             for (int i = 0; i < ConfigT.EncoderLayers; i++)
             {
-                ref var pastKeyValue = ref pastKeyValues[i];
-                var pastKeyValueNames = pastKeyValuesNames[i];
+                var pastKeyValue = pastKeyValues[i];
+                // We only use like half the names, pass via ref
+                ref var pastKeyValueNames = ref pastKeyValuesNames[i];
                 
                 ref var pastKey = ref pastKeyValue.PastKey;
                 ref var pastValue = ref pastKeyValue.PastValue;
@@ -279,7 +280,7 @@ namespace FlorenceSharp.Caching
             for (int i = 0; i < ConfigT.EncoderLayers; i++)
             {
                 var pastKeyValue = pastKeyValues[i];
-                var pastKeyValueNames = pastKeyValuesNames[i];
+                ref var pastKeyValueNames = ref pastKeyValuesNames[i];
 
                 var pastKey = new DenseTensor<float>(
                     pastKeyValue.PastKey.AsMemory(0, encoderLinearLength), 
@@ -313,7 +314,7 @@ namespace FlorenceSharp.Caching
             for (int i = 0; i < ConfigT.EncoderLayers; i++)
             {
                 var pastKeyValue = pastKeyValues[i];
-                var pastKeyValueNames = pastKeyValuesNames[i];
+                ref var pastKeyValueNames = ref pastKeyValuesNames[i];
 
                 var pastKey = new DenseTensor<float>(
                     pastKeyValue.PastKey.AsMemory(0, encoderLinearLength), 
