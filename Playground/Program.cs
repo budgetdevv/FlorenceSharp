@@ -49,7 +49,7 @@ namespace Playground
 
         private struct CUDAFlorenceConfig: IDefaultFlorence2Config
         {
-            public static readonly DeviceType DEVICE_TYPE = DeviceType.CUDA;
+            public static readonly DeviceType DEVICE_TYPE = DeviceType.DirectML;
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.EncoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
@@ -76,13 +76,14 @@ namespace Playground
         {
             var imageBytes = await DownloadImageFromURL("https://i.imgur.com/drGJSNH.jpeg");
             
-            const bool USE_CUDA = false;
+            const bool USE_GPU = false;
 
-            if (USE_CUDA)
+            if (USE_GPU)
             {
                 var florence2 = new Florence2<CUDAFlorenceConfig>();
 
                 Console.WriteLine(florence2.GenerateMoreDetailedCaption(imageBytes));
+
             }
 
             else

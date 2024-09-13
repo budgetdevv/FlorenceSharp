@@ -1,13 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <PropertyGroup Condition="$([MSBuild]::IsOsPlatform('Windows'))">
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    </PropertyGroup>
+
     <ItemGroup>
-      <ProjectReference Include="..\FlorenceSharp\FlorenceSharp.csproj" />
+        <ProjectReference Include="..\FlorenceSharp\FlorenceSharp.csproj" />
     </ItemGroup>
     
+    <ItemGroup Condition="$([MSBuild]::IsOsPlatform('Windows'))">
+        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.19.2" />
+    </ItemGroup>
 </Project>
