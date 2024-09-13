@@ -129,7 +129,7 @@ namespace FlorenceSharp
 
         private readonly CLIPImagePreProcessor<CLIPImageProcessorConfig> ImagePreProcessor;
 
-        internal readonly FlorenceBartTokenizer Tokenizer;
+        private readonly FlorenceBartTokenizer Tokenizer;
 
         internal readonly FlorenceLogitsProcessor<ConfigT> LogitsProcessor;
 
