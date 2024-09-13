@@ -74,7 +74,7 @@ namespace Playground
 
         private static async Task ImageCaptioningTest()
         {
-            var imageBytes = await DownloadImageFromURL("https://i.imgur.com/YqGiFd6.png");
+            var imageBytes = await DownloadImageFromURL("https://avatars.githubusercontent.com/u/74057874?v=4");
             
             const bool USE_GPU = false;
 
