@@ -63,8 +63,6 @@ namespace FlorenceSharp.Configs
         
         static float IFlorenceGenerationConfiguration.LengthPenalty => 1.0f;
         
-        static bool IFlorenceGenerationConfiguration.UseCache => true;
-        
         static uint IFlorenceGenerationConfiguration.EncoderAttentionHeads => 16;
         
         static uint IFlorenceGenerationConfiguration.EncoderLayers => 12;

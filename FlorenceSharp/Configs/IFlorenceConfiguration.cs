@@ -24,8 +24,6 @@
         public static abstract bool EarlyStopping { get; }
         
         public static abstract float LengthPenalty { get; }
-        
-        public static abstract bool UseCache { get; }
 
         public static abstract uint EncoderAttentionHeads { get; }
         

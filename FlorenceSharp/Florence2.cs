@@ -51,6 +51,13 @@ namespace FlorenceSharp
                 USE_CACHE_BRANCH_NAME = "use_cache_branch";
         }
         
+        private struct DecoderOutput
+        {
+            // https://imgur.com/a/iVRFiGv
+            
+            public const string LOGITS_NAME = "logits";
+        }
+        
         private struct VisionEncoderInput
         {
             public const string PIXEL_VALUES_NAME = "pixel_values";
@@ -122,13 +129,13 @@ namespace FlorenceSharp
 
         private readonly CLIPImagePreProcessor<CLIPImageProcessorConfig> ImagePreProcessor;
 
-        private readonly FlorenceBartTokenizer Tokenizer;
+        internal readonly FlorenceBartTokenizer Tokenizer;
 
         internal readonly FlorenceLogitsProcessor<ConfigT> LogitsProcessor;
 
         private const string EOS_TOKEN = FlorenceSpecialTokens.END_OF_SEQUENCE;
 
-        internal readonly long EndOfSequenceTokenID;
+        internal readonly long EndOfSequenceTokenID, BeginningOfSequenceTokenID;
         
         private BeamSearcher<ConfigT> BeamSearcher;
         
@@ -149,11 +156,12 @@ namespace FlorenceSharp
 
             LogitsProcessor = new(in tokenizer);
 
-            var endOfSequenceTokenID = EndOfSequenceTokenID = tokenizer.GetTokenID(EOS_TOKEN);
+            var eosTokenID = EndOfSequenceTokenID = tokenizer.GetTokenID(EOS_TOKEN);
+            var bosTokenID = BeginningOfSequenceTokenID = tokenizer.GetTokenID(FlorenceSpecialTokens.BEGINNING_OF_SEQUENCE);
             
-            BeamSearcher = new(endOfSequenceTokenID);
+            BeamSearcher = new(eosTokenID, bosTokenID);
 
-            StoppingCriteria = new(endOfSequenceTokenID);
+            StoppingCriteria = new(eosTokenID);
             
             var useCacheBranchTensor = new ManagedTensor<bool>(
                 dimensions: (ReadOnlySpan<nint>) [ 1 ],
@@ -245,9 +253,6 @@ namespace FlorenceSharp
             var outputLogitsTensor = new ManagedTensor<float>(
                 dimensions: (ReadOnlySpan<int>) outputLogitsDimensions,
                 initialize: true);
-
-            // useCacheBranch will always be false if UseCache is.
-            useCacheBranch = useCacheBranch && ConfigT.UseCache;
             
             var useCacheBranchTensor = useCacheBranch ? 
                 UseCacheBranchTrueOnnxValue : 
@@ -268,7 +273,7 @@ namespace FlorenceSharp
             ],
             outputs:
             [
-                outputLogitsTensor.AsNamedOnnxValue("logits"),
+                outputLogitsTensor.AsNamedOnnxValue(DecoderOutput.LOGITS_NAME),
                 ..presentKeyValues,
             ]);
 
