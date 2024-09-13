@@ -154,7 +154,7 @@ namespace FlorenceSharp
 
             var tokenizer = Tokenizer = new(sessionOptions: new());
 
-            LogitsProcessor = new(in tokenizer);
+            LogitsProcessor = new();
 
             var eosTokenID = EndOfSequenceTokenID = tokenizer.GetTokenID(EOS_TOKEN);
             var bosTokenID = BeginningOfSequenceTokenID = tokenizer.GetTokenID(FlorenceSpecialTokens.BEGINNING_OF_SEQUENCE);
@@ -371,7 +371,7 @@ namespace FlorenceSharp
             ManagedTensor<long> textAttentionMask)
         {
             var mergedInputEmbeds = SystemNumericsTensor.ConcatenateOnDimension<float>(
-                dimension: 1, 
+                dimension: 1,
                 [ imageFeatures, tokenEmbeddings ]);
 
             // Image attention mask is just all ones.

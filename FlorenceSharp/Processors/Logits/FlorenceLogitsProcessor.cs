@@ -13,26 +13,17 @@ namespace FlorenceSharp.Processors.Logits
         
         private readonly NoRepeatNGramLogitsProcessor<ConfigT> NoRepeatNGramLogitsProcessor;
         
-        private readonly ForcedBOSTokenLogitsProcessor ForcedBOSTokenLogitsProcessor;
-        
         private readonly ForcedEOSTokenLogitsProcessor ForcedEOSTokenLogitsProcessor;
-
+        
         public FlorenceLogitsProcessor()
         {
-            throw new NotSupportedException();
-        }
-        
-        public FlorenceLogitsProcessor(in FlorenceBartTokenizer tokenizer)
-        {
             NoRepeatNGramLogitsProcessor = new();
-            ForcedBOSTokenLogitsProcessor = new(in tokenizer);
             ForcedEOSTokenLogitsProcessor = new();
         }
         
         public void ProcessLogits(Memory<float> logits, Memory<long> inputIDs)
         {
             NoRepeatNGramLogitsProcessor.ProcessLogits(logits, inputIDs);
-            ForcedBOSTokenLogitsProcessor.ProcessLogits(logits, inputIDs);
             ForcedEOSTokenLogitsProcessor.ProcessLogits(logits, inputIDs);
         }
     }
