@@ -2,6 +2,7 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using FlorenceSharp.Helpers;
@@ -12,46 +13,58 @@ namespace FlorenceSharp.Tokenizers
 {
     public readonly struct FlorenceBartTokenizer: IDisposable
     {
-        private static readonly Assembly CURRENT_ASSEMBLY = typeof(FlorenceBartTokenizer).Assembly;
-        
         public struct EncoderInput
         {
             public const string TEXT_INPUT_NAME = "input_text";
         }
         
-        public struct EncoderOutput(DenseTensor<long> inputIDs, DenseTensor<long> attentionMask)
+        public readonly struct EncoderOutput(
+            IDisposableReadOnlyCollection<DisposableNamedOnnxValue> outputs,
+            DenseTensor<long> inputIDs,
+            DenseTensor<long> attentionMask): IDisposable
         {
-            public DenseTensor<long> InputIDs = inputIDs;
+            private readonly IDisposableReadOnlyCollection<DisposableNamedOnnxValue> Outputs = outputs;
             
-            public DenseTensor<long> AttentionMask = attentionMask;
+            public readonly DenseTensor<long> InputIDs = inputIDs;
+            
+            public readonly DenseTensor<long> AttentionMask = attentionMask;
+            
+            public void Dispose()
+            {
+                Outputs.Dispose();
+            }
         }
 
         public struct DecoderInput
         {
             public const string IDS_INPUT_NAME = "ids";
         }
-         
-        // public struct DecoderOutput
-        // {
-        //     public const string TEXT_OUTPUT_NAME = "str";
-        // }
         
-        // I wanted to use Microsoft.ML.Tokenizers, but unfortunately there isn't a straightforward way to add special tokens
-        // See: https://github.com/dotnet/machinelearning/issues/6901
+        public struct DecoderOutput
+        {
+            public const string DECODED_TEXT_NAME = "str";
+        }
+        
+        private const string 
+            ENCODER_MODEL_PATH = "florence2_tokenizer_encode.onnx",
+            DECODER_MODEL_PATH = "florence2_tokenizer_decode.onnx",
+            DECODER_SKIP_SPECIAL_TOKENS_MODEL_PATH = "florence2_tokenizer_decode_skip_special_tokens.onnx",
+            VOCAB_PATH = "vocab.json";
 
+        private static readonly Assembly CURRENT_ASSEMBLY = typeof(FlorenceBartTokenizer).Assembly;
+        
+        
         public readonly SessionOptions SessionOptions;
         
-        private readonly InferenceSession TokenizerEncodeSession, TokenizerDecodeSession;
+        private readonly InferenceSession 
+            TokenizerEncodeSession,
+            TokenizerDecodeSession,
+            TokenizerDecodeSkipSpecialTokensSession;
 
         public readonly FrozenDictionary<string, int> VocabularyToTokenIDMap;
         
         public readonly string[] Vocabulary;
         
-        private const string 
-            ENCODER_MODEL_PATH = "florence2_tokenizer_encode.onnx",
-            DECODER_MODEL_PATH = "florence2_tokenizer_decode.onnx",
-            VOCAB_PATH = "vocab.json";
-
         public FlorenceBartTokenizer()
         {
             throw new NotSupportedException();
@@ -71,6 +84,10 @@ namespace FlorenceSharp.Tokenizers
             
             TokenizerDecodeSession = new(
                 ResourceHelpers.GetResourceBytes(currentAssembly, DECODER_MODEL_PATH)!,
+                sessionOptions);
+            
+            TokenizerDecodeSkipSpecialTokensSession = new(
+                ResourceHelpers.GetResourceBytes(currentAssembly, DECODER_SKIP_SPECIAL_TOKENS_MODEL_PATH)!,
                 sessionOptions);
 
             var map = VocabularyToTokenIDMap = JsonSerializer
@@ -96,22 +113,28 @@ namespace FlorenceSharp.Tokenizers
             [
                 NamedOnnxValue.CreateFromTensor(EncoderInput.TEXT_INPUT_NAME, inputTensor),
             ]);
-
+            
             var inputIDs = (DenseTensor<long>) output[0].Value;
             var attentionMask = (DenseTensor<long>) output[1].Value;
             
-            return new(inputIDs, attentionMask);
+            // Caller will be responsible for disposing the output
+            return new(output, inputIDs, attentionMask);
         }
 
-        public string Decode(Memory<long> inputIDs)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public string Decode(Memory<long> inputIDs, bool skipSpecialTokens)
         {
             var inputTensor = new DenseTensor<long>(inputIDs, [ inputIDs.Length ]);
+            
+            var session = skipSpecialTokens ? TokenizerDecodeSkipSpecialTokensSession : TokenizerDecodeSession;
          
             // https://imgur.com/a/gHk84M6
-            var output = TokenizerDecodeSession.Run(
-            [
-                NamedOnnxValue.CreateFromTensor(DecoderInput.IDS_INPUT_NAME, inputTensor),
-            ]);
+            var output = session.Run(
+                inputs: 
+                [
+                    NamedOnnxValue.CreateFromTensor(DecoderInput.IDS_INPUT_NAME, inputTensor),
+                ]
+            );
             
             var outputTensor = (DenseTensor<string>) output[0].Value;
 

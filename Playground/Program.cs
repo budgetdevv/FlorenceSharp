@@ -40,7 +40,7 @@ namespace Playground
 
                 Attention Mask: {output.AttentionMask.ToArray().GetArrPrintString()}
 
-                Decoded Text: {tokenizer.Decode(inputIDs)}
+                Decoded Text: {tokenizer.Decode(inputIDs, skipSpecialTokens: false)}
                 """;
             
                 Console.WriteLine(text);
@@ -74,7 +74,7 @@ namespace Playground
 
         private static async Task ImageCaptioningTest()
         {
-            var imageBytes = await DownloadImageFromURL("https://i.imgur.com/drGJSNH.jpeg");
+            var imageBytes = await DownloadImageFromURL("https://i.imgur.com/YqGiFd6.png");
             
             const bool USE_GPU = false;
 
@@ -83,7 +83,6 @@ namespace Playground
                 var florence2 = new Florence2<CUDAFlorenceConfig>();
 
                 Console.WriteLine(florence2.GenerateMoreDetailedCaption(imageBytes));
-
             }
 
             else

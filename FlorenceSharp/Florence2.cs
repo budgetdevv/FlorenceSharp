@@ -287,7 +287,7 @@ namespace FlorenceSharp
             var prompt = PROMPTS_WITHOUT_INPUTS[mode];
             
             // TODO: We can make a cache for constant prompts.
-            var tokenized = Tokenizer.Tokenize(prompt);
+            using var tokenized = Tokenizer.Tokenize(prompt);
             
             var tokenEmbeddings = GenerateEmbeddingsForInputIDs(tokenized.InputIDs);
             
@@ -362,7 +362,7 @@ namespace FlorenceSharp
                 encoderSequenceLength);
 
             // TODO: Implement post-processing
-            return Tokenizer.Decode(searchResult);
+            return Tokenizer.Decode(searchResult, skipSpecialTokens: true);
         }
         
         private static (ManagedTensor<float> mergedInputEmbeds, ManagedTensor<long> mergedAttentionMask) MergeTokenEmbeddingsAndImageFeatures(

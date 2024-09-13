@@ -35,9 +35,15 @@ tokenizer: BartTokenizer = processor.tokenizer;
 print(type(tokenizer));
 
 
-def generate_tokenizer_models():
+def generate_tokenizer_models(decode_skip_special_tokens: bool):
     # pre_kwargs={}, post_kwargs={} tells it to generate both pre and post-processing onnx models for the tokenizer
-    pre_processing_model, post_processing_model = gen_processing_models(tokenizer, pre_kwargs={}, post_kwargs={});
+    pre_processing_model, post_processing_model = gen_processing_models(
+        tokenizer, pre_kwargs={},
+        post_kwargs=
+        {
+            "skip_special_tokens": decode_skip_special_tokens
+        }
+    );
 
     # Export the ONNX model to a file
     onnx.save_model(OrtPyFunction(pre_processing_model).onnx_model, "florence2_tokenizer_encode.onnx");
@@ -140,7 +146,7 @@ def generate_top_k_onnx():
 
 # Run any of the above functions
 
-# generate_tokenizer_models();
+# generate_tokenizer_models(decode_skip_special_tokens=True);
 # test_encoding();
 # run_florence2();
-generate_top_k_onnx();
+# generate_top_k_onnx();
