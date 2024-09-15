@@ -20,6 +20,8 @@ namespace FlorenceSharp
             public OnnxMemoryModes MemoryMode;
             
             public bool RegisterOrtExtensions;
+            
+            public OrtLoggingLevel LoggingLevel;
 
             public Configuration()
             {
@@ -29,6 +31,7 @@ namespace FlorenceSharp
                 DeviceID = 0;
                 MemoryMode = OnnxMemoryModes.None;
                 RegisterOrtExtensions = false;
+                LoggingLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_WARNING;
             }
 
             [UnscopedRef]
@@ -60,6 +63,14 @@ namespace FlorenceSharp
             public ref Configuration WithRegisterOrtExtensions()
             {
                 RegisterOrtExtensions = true;
+
+                return ref this;
+            }
+            
+            [UnscopedRef]
+            public ref Configuration WithLoggingLevel(OrtLoggingLevel loggingLevel)
+            {
+                LoggingLevel = loggingLevel;
 
                 return ref this;
             }
@@ -109,6 +120,8 @@ namespace FlorenceSharp
                     sessionOptions.AppendExecutionProvider_CoreML();
                     break;
             }
+
+            sessionOptions.LogSeverityLevel = config.LoggingLevel;
             
             Session = new(modelPath: config.ModelPath, options: sessionOptions);
         }
