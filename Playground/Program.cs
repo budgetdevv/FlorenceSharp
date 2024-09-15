@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net.Http;
@@ -7,6 +8,7 @@ using FlorenceSharp;
 using FlorenceSharp.Configs;
 using FlorenceSharp.Helpers;
 using FlorenceSharp.Tokenizers;
+using Microsoft.ML.OnnxRuntime;
 
 namespace Playground
 {
@@ -47,28 +49,36 @@ namespace Playground
             }
         }
 
-        private struct CUDAFlorenceConfig: IDefaultFlorence2Config
+        private const bool USE_GPU = false;
+
+        private static readonly OrtLoggingLevel LoggingLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_INFO;
+        
+        private struct FlorenceConfig: IDefaultFlorence2Config
         {
-            public static readonly DeviceType DEVICE_TYPE = DeviceType.DirectML;
+            public static readonly DeviceType DEVICE_TYPE = USE_GPU ? DeviceType.CUDA : DeviceType.CPU;
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.EncoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
+                    .WithLoggingLevel(LoggingLevel)
                     .WithModelPath(IDefaultFlorence2Config.ENCODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.DecoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
+                    .WithLoggingLevel(LoggingLevel)
                     .WithModelPath(IDefaultFlorence2Config.DECODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.VisionEncoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
+                    .WithLoggingLevel(LoggingLevel)
                     .WithModelPath(IDefaultFlorence2Config.VISION_ENCODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.TokensEmbeddingModelDeviceType
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
+                    .WithLoggingLevel(LoggingLevel)
                     .WithModelPath(IDefaultFlorence2Config.TOKENS_EMBEDDING_MODEL_PATH);
         }
 
@@ -76,20 +86,32 @@ namespace Playground
         {
             var imageBytes = await DownloadImageFromURL("https://avatars.githubusercontent.com/u/74057874?v=4");
             
-            const bool USE_GPU = false;
+            var florence2 = new Florence2<FlorenceConfig>();
 
-            if (USE_GPU)
+            var sw = new Stopwatch();
+            
+            const int NUM_ITERATIONS = 3;
+            
+            for (int i = 0; i < NUM_ITERATIONS; i++)
             {
-                var florence2 = new Florence2<CUDAFlorenceConfig>();
+                sw.Start();
+                
+                var result = florence2.GenerateMoreDetailedCaption(imageBytes);
 
-                Console.WriteLine(florence2.GenerateMoreDetailedCaption(imageBytes));
-            }
+                sw.Stop();
 
-            else
-            {
-                var florence2 = new Florence2();
-
-                Console.WriteLine(florence2.GenerateMoreDetailedCaption(imageBytes));
+                var elapsedSeconds = sw.Elapsed.TotalSeconds;
+                
+                sw.Reset();
+                
+                Console.WriteLine(
+                $"""
+                {result}
+                
+                --------------------------------
+                
+                Took {elapsedSeconds} seconds!
+                """);
             }
         }
         
