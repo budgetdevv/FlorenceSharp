@@ -51,14 +51,12 @@ namespace Playground
             }
         }
 
-        private const bool USE_GPU = false;
+        private const DeviceType DEVICE_TYPE = DeviceType.CPU;
 
         private const OrtLoggingLevel LOGGING_LEVEL = OrtLoggingLevel.ORT_LOGGING_LEVEL_WARNING;
 
         private struct FlorenceConfig: IDefaultFlorence2Config
         {
-            public static readonly DeviceType DEVICE_TYPE = USE_GPU ? DeviceType.CUDA : DeviceType.CPU;
-            
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.EncoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
