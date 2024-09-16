@@ -1,4 +1,6 @@
-﻿namespace FlorenceSharp.Configs
+﻿using ONNX.Common;
+
+namespace FlorenceSharp.Configs
 {
     public interface IFlorenceConfiguration: IFlorenceGenerationConfiguration
     {

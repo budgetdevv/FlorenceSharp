@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlorenceSharp", "FlorenceSh
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Playground", "Playground\Playground.csproj", "{C9FB9419-1948-49C4-ABAD-16D914F06CB7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ONNX.Common", "ONNX.Common\ONNX.Common\ONNX.Common.csproj", "{ED04A84D-1A47-40B4-ABD4-4DD09C7B5141}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{C9FB9419-1948-49C4-ABAD-16D914F06CB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C9FB9419-1948-49C4-ABAD-16D914F06CB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C9FB9419-1948-49C4-ABAD-16D914F06CB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ED04A84D-1A47-40B4-ABD4-4DD09C7B5141}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED04A84D-1A47-40B4-ABD4-4DD09C7B5141}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED04A84D-1A47-40B4-ABD4-4DD09C7B5141}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED04A84D-1A47-40B4-ABD4-4DD09C7B5141}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

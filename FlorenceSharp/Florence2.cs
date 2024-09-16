@@ -3,18 +3,17 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using FlorenceSharp.Caching;
 using FlorenceSharp.Configs;
 using FlorenceSharp.DecodingStrategies;
-using FlorenceSharp.Helpers;
 using FlorenceSharp.Processors.Imaging;
 using FlorenceSharp.Processors.Logits;
 using FlorenceSharp.StoppingCriteria;
-using FlorenceSharp.Tensor;
 using FlorenceSharp.Tokenizers;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using ONNX.Common;
+using ONNX.Common.Helpers;
+using ONNX.Common.Tensor;
 
 namespace FlorenceSharp
 {

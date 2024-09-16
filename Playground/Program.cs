@@ -6,9 +6,11 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using FlorenceSharp;
 using FlorenceSharp.Configs;
-using FlorenceSharp.Helpers;
 using FlorenceSharp.Tokenizers;
 using Microsoft.ML.OnnxRuntime;
+using ONNX.Common;
+using ONNX.Common.Configs;
+using ONNX.Common.Helpers;
 
 namespace Playground
 {
@@ -51,8 +53,8 @@ namespace Playground
 
         private const bool USE_GPU = false;
 
-        private static readonly OrtLoggingLevel LoggingLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_INFO;
-        
+        private const OrtLoggingLevel LOGGING_LEVEL = OrtLoggingLevel.ORT_LOGGING_LEVEL_WARNING;
+
         private struct FlorenceConfig: IDefaultFlorence2Config
         {
             public static readonly DeviceType DEVICE_TYPE = USE_GPU ? DeviceType.CUDA : DeviceType.CPU;
@@ -60,25 +62,25 @@ namespace Playground
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.EncoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
-                    .WithLoggingLevel(LoggingLevel)
+                    .WithLoggingLevel(LOGGING_LEVEL)
                     .WithModelPath(IDefaultFlorence2Config.ENCODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.DecoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
-                    .WithLoggingLevel(LoggingLevel)
+                    .WithLoggingLevel(LOGGING_LEVEL)
                     .WithModelPath(IDefaultFlorence2Config.DECODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.VisionEncoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
-                    .WithLoggingLevel(LoggingLevel)
+                    .WithLoggingLevel(LOGGING_LEVEL)
                     .WithModelPath(IDefaultFlorence2Config.VISION_ENCODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.TokensEmbeddingModelDeviceType
                 => new ConfigurableOnnxModel.Configuration()
                     .WithDeviceType(DEVICE_TYPE)
-                    .WithLoggingLevel(LoggingLevel)
+                    .WithLoggingLevel(LOGGING_LEVEL)
                     .WithModelPath(IDefaultFlorence2Config.TOKENS_EMBEDDING_MODEL_PATH);
         }
 

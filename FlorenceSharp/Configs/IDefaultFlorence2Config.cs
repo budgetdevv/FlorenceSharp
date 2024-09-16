@@ -1,3 +1,5 @@
+using ONNX.Common;
+
 namespace FlorenceSharp.Configs
 {
     public interface IDefaultFlorence2Config: IFlorenceConfiguration

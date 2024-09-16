@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using FlorenceSharp.Configs;
-using FlorenceSharp.Helpers;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using ONNX.Common.Helpers;
 
 namespace FlorenceSharp.Caching
 {

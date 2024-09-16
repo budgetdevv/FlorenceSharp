@@ -1,0 +1,3 @@
+[submodule "ONNX.Common"]
+	path = ONNX.Common
+	url = https://github.com/budgetdevv/ONNX.Common
