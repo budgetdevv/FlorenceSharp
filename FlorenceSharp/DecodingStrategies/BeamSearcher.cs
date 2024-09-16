@@ -9,6 +9,9 @@ using FlorenceSharp.StoppingCriteria;
 using Microsoft.ML.OnnxRuntime;
 using ONNX.Common.Helpers;
 using ONNX.Common.Tensor;
+#if DEBUG
+using System.Linq;
+#endif
 
 namespace FlorenceSharp.DecodingStrategies
 {
