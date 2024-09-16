@@ -18,8 +18,10 @@
         <ProjectReference Include="..\FlorenceSharp\FlorenceSharp.csproj" />
         <ProjectReference Include="..\ONNX.Common\ONNX.Common\ONNX.Common.csproj" />
     </ItemGroup>
-    
+
     <ItemGroup Condition="$([MSBuild]::IsOsPlatform('Windows'))">
-        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.19.2" />
+        <!-- Only enable one of them!!! -->
+        <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.18.1" />
+        <!--        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.19.2" />-->
     </ItemGroup>
 </Project>
