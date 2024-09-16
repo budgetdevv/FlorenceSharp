@@ -51,7 +51,7 @@ namespace Playground
             }
         }
 
-        private const DeviceType DEVICE_TYPE = DeviceType.CPU;
+        private const BackendType BACKEND_TYPE = BackendType.CPU;
 
         private const OrtLoggingLevel LOGGING_LEVEL = OrtLoggingLevel.ORT_LOGGING_LEVEL_WARNING;
 
@@ -59,25 +59,25 @@ namespace Playground
         {
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.EncoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
-                    .WithDeviceType(DEVICE_TYPE)
+                    .WithDeviceType(BACKEND_TYPE)
                     .WithLoggingLevel(LOGGING_LEVEL)
                     .WithModelPath(IDefaultFlorence2Config.ENCODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.DecoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
-                    .WithDeviceType(DEVICE_TYPE)
+                    .WithDeviceType(BACKEND_TYPE)
                     .WithLoggingLevel(LOGGING_LEVEL)
                     .WithModelPath(IDefaultFlorence2Config.DECODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.VisionEncoderModelConfig
                 => new ConfigurableOnnxModel.Configuration()
-                    .WithDeviceType(DEVICE_TYPE)
+                    .WithDeviceType(BACKEND_TYPE)
                     .WithLoggingLevel(LOGGING_LEVEL)
                     .WithModelPath(IDefaultFlorence2Config.VISION_ENCODER_MODEL_PATH);
             
             static ConfigurableOnnxModel.Configuration IFlorenceConfiguration.TokensEmbeddingModelDeviceType
                 => new ConfigurableOnnxModel.Configuration()
-                    .WithDeviceType(DEVICE_TYPE)
+                    .WithDeviceType(BACKEND_TYPE)
                     .WithLoggingLevel(LOGGING_LEVEL)
                     .WithModelPath(IDefaultFlorence2Config.TOKENS_EMBEDDING_MODEL_PATH);
         }
