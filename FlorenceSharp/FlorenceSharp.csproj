@@ -26,6 +26,7 @@
             <Link>ortextensions.dylib</Link>
         </None>
     </ItemGroup>
+    
     <ItemGroup>
       <ProjectReference Include="..\ONNX.Common\ONNX.Common\ONNX.Common.csproj" />
     </ItemGroup>
